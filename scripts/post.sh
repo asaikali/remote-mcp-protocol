@@ -9,10 +9,28 @@ if [ -z "$SESSION_ID" ]; then
   exit 1
 fi
 
-########## [1] LIST TOOLS ##########
+########## [1] PING ##########
 echo
 echo "============================================================"
-echo "  STAGE 1: LIST TOOLS"
+echo "  STAGE 1: PING"
+echo "============================================================"
+echo
+http --verbose --print=HhBb POST "$BASE_URL" \
+  "Accept: application/json, text/event-stream" \
+  "Content-Type: application/json" \
+  "Mcp-Session-Id: $SESSION_ID" \
+  <<< '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "ping"
+}'
+
+read -p "➡️ Press Enter to list tools…"
+
+########## [2] LIST TOOLS ##########
+echo
+echo "============================================================"
+echo "  STAGE 2: LIST TOOLS"
 echo "============================================================"
 echo
 http --verbose --print=HhBb POST "$BASE_URL" \
@@ -27,10 +45,10 @@ http --verbose --print=HhBb POST "$BASE_URL" \
 
 read -p "➡️ Press Enter to invoke the echo tool…"
 
-########## [2] INVOKE ECHO TOOL ##########
+########## [3] INVOKE ECHO TOOL ##########
 echo
 echo "============================================================"
-echo "  STAGE 2: INVOKE ECHO TOOL"
+echo "  STAGE 3: INVOKE ECHO TOOL"
 echo "============================================================"
 echo
 http --verbose --print=HhBb POST "$BASE_URL" \
@@ -49,18 +67,18 @@ http --verbose --print=HhBb POST "$BASE_URL" \
   }
 }'
 
-read -p "➡️ Press Enter to invoke LONG RUNNING OPERATION WITHOUT progressToken…"
+read -p "➡️ Press Enter to invoke the LONG RUNNING OPERATION tool (without progressToken)…"
 
-########## [3] INVOKE LONG RUNNING OPERATION WITHOUT progressToken ##########
+########## [4] INVOKE LONG RUNNING OPERATION (NO progressToken) ##########
 echo
 echo "============================================================"
-echo "  STAGE 3: LONG RUNNING OPERATION WITHOUT progressToken"
+echo "  STAGE 4: LONG RUNNING OPERATION (NO progressToken)"
 echo "============================================================"
 echo
-http --stream POST "$BASE_URL" \
-  Accept:application/json,text/event-stream \
-  Content-Type:application/json \
-  Mcp-Session-Id:$SESSION_ID \
+http --verbose --print=HhBb --stream POST "$BASE_URL" \
+  "Accept: application/json, text/event-stream" \
+  "Content-Type: application/json" \
+  "Mcp-Session-Id: $SESSION_ID" \
   <<< '{
     "jsonrpc":"2.0","id":4,"method":"tools/call",
     "params":{
@@ -69,32 +87,25 @@ http --stream POST "$BASE_URL" \
     }
   }'
 
-echo
-echo "⚠️  Notice: No progress notifications should have been received above."
-echo "    See https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/progress for details."
-echo
+read -p "➡️ Press Enter to invoke the LONG RUNNING OPERATION tool (WITH progressToken)…"
 
-read -p "➡️ Press Enter to invoke LONG RUNNING OPERATION WITH progressToken…"
-
-########## [4] INVOKE LONG RUNNING OPERATION WITH progressToken ##########
+########## [5] INVOKE LONG RUNNING OPERATION (WITH progressToken) ##########
 echo
 echo "============================================================"
-echo "  STAGE 4: LONG RUNNING OPERATION WITH progressToken"
+echo "  STAGE 5: LONG RUNNING OPERATION (WITH progressToken)"
 echo "============================================================"
 echo
-http --stream POST "$BASE_URL" \
-  Accept:application/json,text/event-stream \
-  Content-Type:application/json \
-  Mcp-Session-Id:$SESSION_ID \
+http --verbose --print=HhBb --stream POST "$BASE_URL" \
+  "Accept: application/json, text/event-stream" \
+  "Content-Type: application/json" \
+  "Mcp-Session-Id: $SESSION_ID" \
   <<< '{
     "jsonrpc":"2.0","id":5,"method":"tools/call",
     "params":{
       "name":"longRunningOperation",
       "arguments":{"duration":10,"steps":5},
-      "_meta":{"progressToken":"op-1234"}
+      "_meta":{"progressToken":"op-5678"}
     }
   }'
 
-echo
-echo "✅ Progress notifications should have been received in the SSE stream."
-echo
+echo "✅ All stages completed."
