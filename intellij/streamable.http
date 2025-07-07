@@ -1,0 +1,112 @@
+### Environment and variables
+@baseUrl = http://localhost:3001/mcp
+@protocolVersion = 2025-06-18
+
+### Initialize Request
+POST {{baseUrl}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "{{protocolVersion}}",
+    "capabilities": {
+      "roots": {
+        "listChanged": true
+      },
+      "sampling": {},
+      "elicitation": {}
+    },
+    "clientInfo": {
+      "name": "IntelliJTestClient",
+      "version": "0.1"
+    }
+  }
+}
+
+> {%
+  /*
+   * Extract and store the MCP-Session-Id returned in the response header
+   * for use in subsequent requests
+   */
+
+  const sessionId =  response.headers.valueOf("Mcp-Session-Id");
+
+  if (sessionId) {
+    client.global.set("sessionId", sessionId);
+    console.log("✅ MCP Session ID saved:", client.global.get("sessionId"));
+  } else {
+    console.log("❌ No MCP-Session-Id found in response headers.");
+  }
+%}
+
+### Initialized Notification
+POST {{baseUrl}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+
+[
+  {
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized"
+  }
+]
+
+### Listen for server notifications via SSE stream
+GET {{baseUrl}}
+Accept: text/event-stream
+Mcp-Session-Id: {{sessionId}}
+
+
+### Get List of Tools
+POST {{baseUrl}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list"
+}
+
+### Invoke the echo tool correctly using tools/call
+POST {{baseUrl}}
+Accept: application/json, text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "echo",
+    "arguments": {
+      "message": "Hello from IntelliJ .http file!"
+    }
+  }
+}
+
+### Invoke the longRunningOperation tool with streaming progress
+POST {{baseUrl}}
+Accept: application/json,text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "longRunningOperation",
+    "arguments": {
+      "duration": 10,
+      "steps": 5
+    }
+  }
+}
