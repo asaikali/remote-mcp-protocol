@@ -92,7 +92,8 @@ Mcp-Session-Id: {{sessionId}}
   }
 }
 
-### Invoke the longRunningOperation tool with streaming progress
+### Invoke the longRunningOperation tool WITHOUT progressToken
+# See: https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/progress
 POST {{baseUrl}}
 Accept: application/json,text/event-stream
 Content-Type: application/json
@@ -107,6 +108,29 @@ Mcp-Session-Id: {{sessionId}}
     "arguments": {
       "duration": 10,
       "steps": 5
+    }
+  }
+}
+
+### Invoke the longRunningOperation tool WITH progressToken
+# See: https://modelcontextprotocol.io/specification/2025-06-18/basic/utilities/progress
+POST {{baseUrl}}
+Accept: application/json,text/event-stream
+Content-Type: application/json
+Mcp-Session-Id: {{sessionId}}
+
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "tools/call",
+  "params": {
+    "name": "longRunningOperation",
+    "arguments": {
+      "duration": 10,
+      "steps": 5
+    },
+    "_meta": {
+      "progressToken": "op-1234"
     }
   }
 }
