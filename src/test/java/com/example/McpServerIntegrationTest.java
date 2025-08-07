@@ -5,9 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.client.RestClient;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
@@ -39,13 +40,13 @@ class McpServerIntegrationTest {
         registry.add("mcp.server.port", mcpContainer::getFirstMappedPort);
     }
 
-    private WebClient createWebClient() {
+    private RestClient createRestClient() {
         String baseUrl = String.format("http://%s:%d%s", 
                 mcpContainer.getHost(), 
                 mcpContainer.getFirstMappedPort(), 
                 MCP_ENDPOINT);
         
-        return WebClient.builder()
+        return RestClient.builder()
                 .baseUrl(baseUrl)
                 .build();
     }
@@ -53,7 +54,7 @@ class McpServerIntegrationTest {
     @Test
     void shouldInitializeMcpServer() throws Exception {
         // Given
-        WebClient client = createWebClient();
+        RestClient client = createRestClient();
         
         String initRequestJson = """
                 {
@@ -76,13 +77,12 @@ class McpServerIntegrationTest {
                 """;
 
         // When
-        var initResponse = client.post()
+        ResponseEntity<String> initResponse = client.post()
                 .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(initRequestJson)
+                .body(initRequestJson)
                 .retrieve()
-                .toEntity(String.class)
-                .block(Duration.ofSeconds(10));
+                .toEntity(String.class);
 
         // Then
         assertNotNull(initResponse, "Initialize response should not be null");
@@ -133,7 +133,7 @@ class McpServerIntegrationTest {
     @Test
     void shouldSendInitializedNotification() throws Exception {
         // Given
-        WebClient client = createWebClient();
+        RestClient client = createRestClient();
         String sessionId = initializeServer(client);
         
         String initializedNotificationJson = """
@@ -146,25 +146,24 @@ class McpServerIntegrationTest {
                 """;
 
         // When
-        var notifyResponse = client.post()
+        ResponseEntity<String> notifyResponse = client.post()
                 .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Mcp-Session-Id", sessionId)
-                .bodyValue(initializedNotificationJson)
+                .body(initializedNotificationJson)
                 .retrieve()
-                .bodyToMono(String.class)
-                .block(Duration.ofSeconds(10));
+                .toEntity(String.class);
 
         // Then
         // Notification responses are typically empty or minimal
         System.out.println("✅ Initialized notification sent successfully");
-        System.out.println("📋 Response: " + notifyResponse);
+        System.out.println("📋 Response: " + notifyResponse.getBody());
     }
 
     @Test
     void shouldListToolsAfterInitialization() throws Exception {
         // Given
-        WebClient client = createWebClient();
+        RestClient client = createRestClient();
         String sessionId = initializeServerAndSendNotification(client);
         
         String listToolsRequestJson = """
@@ -176,14 +175,15 @@ class McpServerIntegrationTest {
                 """;
 
         // When
-        var toolsResponse = client.post()
+        ResponseEntity<String> toolsResponseEntity = client.post()
                 .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Mcp-Session-Id", sessionId)
-                .bodyValue(listToolsRequestJson)
+                .body(listToolsRequestJson)
                 .retrieve()
-                .bodyToMono(String.class)
-                .block(Duration.ofSeconds(10));
+                .toEntity(String.class);
+        
+        String toolsResponse = toolsResponseEntity.getBody();
 
         // Then
         assertNotNull(toolsResponse, "Tools response should not be null");
@@ -217,7 +217,7 @@ class McpServerIntegrationTest {
     /**
      * Helper method to initialize the MCP server and return the session ID
      */
-    private String initializeServer(WebClient client) throws Exception {
+    private String initializeServer(RestClient client) throws Exception {
         String initRequestJson = """
                 {
                   "jsonrpc": "2.0",
@@ -238,13 +238,12 @@ class McpServerIntegrationTest {
                 }
                 """;
 
-        var initResponse = client.post()
+        ResponseEntity<String> initResponse = client.post()
                 .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(initRequestJson)
+                .body(initRequestJson)
                 .retrieve()
-                .toEntity(String.class)
-                .block(Duration.ofSeconds(10));
+                .toEntity(String.class);
 
         assertNotNull(initResponse);
         String sessionId = initResponse.getHeaders().getFirst("mcp-session-id");
@@ -272,7 +271,7 @@ class McpServerIntegrationTest {
     /**
      * Helper method to initialize the server and send initialized notification
      */
-    private String initializeServerAndSendNotification(WebClient client) throws Exception {
+    private String initializeServerAndSendNotification(RestClient client) throws Exception {
         String sessionId = initializeServer(client);
         
         String initializedNotificationJson = """
@@ -288,10 +287,9 @@ class McpServerIntegrationTest {
                 .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Mcp-Session-Id", sessionId)
-                .bodyValue(initializedNotificationJson)
+                .body(initializedNotificationJson)
                 .retrieve()
-                .bodyToMono(String.class)
-                .block(Duration.ofSeconds(10));
+                .toEntity(String.class);
                 
         return sessionId;
     }
