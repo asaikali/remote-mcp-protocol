@@ -7,7 +7,7 @@ import java.util.Scanner;
 
 public class McpEverythingClient {
 
-    private static final String BASE_URL = "http://localhost:3001/mcp";
+    private static final String BASE_URL = "http://localhost:4001/mcp";
 
     public static void main(String[] args) {
         WebClient client = WebClient.builder()
