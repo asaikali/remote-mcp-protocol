@@ -7,7 +7,7 @@ directories:
       tags:
       - typescript-servers-0.6.2-2973-g1028b32
     path: .
-  path: test/servers
+  path: resources/servers
 - contents:
   - git:
       commitTitle: 'Merge pull request #681 from modelcontextprotocol/fweinberger/fix-npx-no-args...'
@@ -15,5 +15,13 @@ directories:
       tags:
       - 0.16.2-56-gaa6a98a
     path: .
-  path: test/inspector
+  path: resources/inspector
+- contents:
+  - git:
+      commitTitle: 'Merge pull request #783 from modelcontextprotocol/davidsp/2025-06-18...'
+      sha: f5ccad944fdf2b7d9cc70cf817f66ca5a8aa03a4
+      tags:
+      - "2025-06-18"
+    path: .
+  path: resources/spec
 kind: LockConfig

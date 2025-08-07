@@ -9,7 +9,7 @@ This repository contains tools and examples for exploring the **Model Context Pr
 - **Java Spring Boot application** (`src/main/java/`) - Contains a Spring Boot app with `McpEverythingClient.java` that demonstrates MCP client interactions over HTTP
 - **Bash scripts** (`scripts/`) - HTTPie-based scripts for raw HTTP-level MCP protocol exploration
 - **IntelliJ HTTP files** (`intellij/`) - `.http` files for testing MCP interactions within IntelliJ IDE
-- **Test resources** (`test/`) - Contains MCP Inspector and various MCP servers (pulled via vendir)
+- **Resources** (`resources/`) - Contains MCP Inspector, various MCP servers, and the MCP specification (pulled via vendir)
 - **Docker support** (`docker/`) - Containerization setup for the project
 
 ## Common Development Commands
@@ -21,9 +21,14 @@ This repository contains tools and examples for exploring the **Model Context Pr
 - **Package**: `./mvnw clean package` - Creates executable JAR
 
 ### MCP Server Setup (for testing)
+First, ensure you have the latest dependencies:
+```bash
+vendir sync
+```
+
 Start the Everything Server locally:
 ```bash
-cd test/servers/src/everything
+cd resources/servers/src/everything
 npm install
 npm run start:streamableHttp  # Runs on http://localhost:3001/mcp
 ```
@@ -66,12 +71,14 @@ The client implements the standard MCP handshake:
 - Session management with proper header handling
 - Progress notification handling for long-running operations
 
-## Testing Dependencies
+## External Dependencies
 
-The `test/` directory contains vendored dependencies:
-- **MCP Inspector** - UI-based MCP client for visual testing
-- **MCP Servers** - Collection of reference server implementations
+The `resources/` directory contains vendored dependencies managed by `vendir`:
+- **MCP Inspector** (`resources/inspector/`) - UI-based MCP client for visual testing
+- **MCP Servers** (`resources/servers/`) - Collection of reference server implementations  
+- **MCP Specification** (`resources/spec/`) - Official MCP protocol specification (tag: 2025-06-18)
 - These are managed by `vendir` (see `vendir.yml` and `vendir.lock.yml`)
+- Run `vendir sync` to download/update dependencies
 
 ## Docker Support
 
