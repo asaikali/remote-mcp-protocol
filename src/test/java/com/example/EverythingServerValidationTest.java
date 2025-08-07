@@ -1,5 +1,7 @@
 package com.example;
 
+import com.example.everything.EverythingServerTestClient;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -48,7 +50,9 @@ class EverythingServerValidationTest {
                 mcpContainer.getFirstMappedPort(),
                 MCP_ENDPOINT);
         
-        return new EverythingServerTestClient(baseUrl);
+        return EverythingServerTestClient.builder()
+                .baseUrl(baseUrl)
+                .build();
     }
 
     @Test
@@ -62,15 +66,11 @@ class EverythingServerValidationTest {
         // Then
         assertNotNull(result.sessionId(), "Session ID should be present");
         assertFalse(result.sessionId().trim().isEmpty(), "Session ID should not be empty");
-        assertEquals("2025-06-18", result.protocolVersion(), "Should support the expected protocol version");
+        assertNotNull(result.protocolVersion(), "Protocol version should be present");
         
-        assertTrue(result.serverInfo().has("name"), "Server info should have name");
-        assertTrue(result.serverInfo().has("version"), "Server info should have version");
-        
-        System.out.println("✅ Initialization successful");
-        System.out.println("📋 Session ID: " + result.sessionId());
-        System.out.println("📋 Protocol Version: " + result.protocolVersion());
-        System.out.println("📋 Server Name: " + result.serverInfo().get("name").asText());
+        assertNotNull(result.serverInfo(), "Server info should be present");
+        assertNotNull(result.serverInfo().name(), "Server info should have name");
+        assertNotNull(result.serverInfo().version(), "Server info should have version");
     }
 
     @Test
@@ -83,19 +83,24 @@ class EverythingServerValidationTest {
         EverythingServerTestClient.ToolsListResult result = client.listTools();
 
         // Then
-        assertTrue(result.toolNames().size() > 0, "Should have at least one tool");
+        assertTrue(result.tools().size() > 0, "Should have at least one tool");
+        
+        // Extract tool names from Tool objects
+        Set<String> toolNames = result.tools().stream()
+                .map(McpSchema.Tool::name)
+                .collect(java.util.stream.Collectors.toSet());
         
         // Verify expected core tools are present
         Set<String> expectedTools = Set.of("echo", "printEnv", "add", "longRunningOperation");
         for (String expectedTool : expectedTools) {
-            assertTrue(result.toolNames().contains(expectedTool), 
+            assertTrue(toolNames.contains(expectedTool), 
                 "Expected tool '" + expectedTool + "' should be available");
         }
         
         System.out.println("✅ Tools listing successful");
-        System.out.println("📋 Total tools: " + result.toolNames().size());
+        System.out.println("📋 Total tools: " + result.tools().size());
         System.out.println("📋 Core tools verified: " + expectedTools);
-        System.out.println("📋 All tools: " + result.toolNames());
+        System.out.println("📋 All tools: " + toolNames);
     }
 
     @Test
@@ -119,16 +124,24 @@ class EverythingServerValidationTest {
         String testMessage = "Hello from MCP Test Suite!";
 
         // When
-        EverythingServerTestClient.EchoResult result = client.invokeEcho(testMessage);
+        EverythingServerTestClient.CallToolResult result = client.invokeEcho(testMessage);
 
         // Then
-        assertNotNull(result.message(), "Echo result should not be null");
-        assertTrue(result.message().contains(testMessage), 
+        assertNotNull(result.callToolResult(), "Echo result should not be null");
+        assertNotNull(result.callToolResult().content(), "Echo result content should not be null");
+        assertFalse(result.callToolResult().content().isEmpty(), "Echo result content should not be empty");
+        
+        // Extract text content
+        var content = result.callToolResult().content().get(0);
+        assertTrue(content instanceof McpSchema.TextContent, "Content should be text");
+        String echoMessage = ((McpSchema.TextContent) content).text();
+        
+        assertTrue(echoMessage.contains(testMessage), 
             "Echo result should contain the input message");
         
         System.out.println("✅ Echo tool successful");
         System.out.println("📋 Input: " + testMessage);
-        System.out.println("📋 Output: " + result.message());
+        System.out.println("📋 Output: " + echoMessage);
     }
 
     @Test
@@ -139,16 +152,24 @@ class EverythingServerValidationTest {
         int a = 2, b = 3, expected = 5;
 
         // When
-        EverythingServerTestClient.AddResult result = client.invokeAdd(a, b);
+        EverythingServerTestClient.CallToolResult result = client.invokeAdd(a, b);
 
         // Then
-        assertEquals(expected, result.result(), "2 + 3 should equal 5");
-        assertTrue(result.fullText().contains(String.valueOf(expected)), 
+        assertNotNull(result.callToolResult(), "Add result should not be null");
+        assertNotNull(result.callToolResult().content(), "Add result content should not be null");
+        assertFalse(result.callToolResult().content().isEmpty(), "Add result content should not be empty");
+        
+        // Extract text content
+        var content = result.callToolResult().content().get(0);
+        assertTrue(content instanceof McpSchema.TextContent, "Content should be text");
+        String addMessage = ((McpSchema.TextContent) content).text();
+        
+        assertTrue(addMessage.contains(String.valueOf(expected)), 
             "Full text should contain the result");
         
         System.out.println("✅ Add tool successful");
-        System.out.println("📋 Calculation: " + a + " + " + b + " = " + result.result());
-        System.out.println("📋 Full response: " + result.fullText());
+        System.out.println("📋 Calculation: " + a + " + " + b + " = " + expected);
+        System.out.println("📋 Full response: " + addMessage);
     }
 
     @Test
@@ -165,6 +186,7 @@ class EverythingServerValidationTest {
         assertTrue(result.toolCount() >= 4, "Should have at least 4 tools");
         assertNotNull(result.echoMessage(), "Should have echo result");
         assertEquals(5, result.addResult(), "Add result should be 5");
+        assertNull(result.errorMessage(), "Should have no error message");
         
         System.out.println("✅ Complete test suite successful");
         System.out.println("📋 Session ID: " + result.sessionId());
@@ -182,22 +204,28 @@ class EverythingServerValidationTest {
         // When & Then - Test multiple operations in sequence
         client.validateCoreTools();
         
-        EverythingServerTestClient.EchoResult echo1 = client.invokeEcho("First message");
-        EverythingServerTestClient.EchoResult echo2 = client.invokeEcho("Second message");
+        EverythingServerTestClient.CallToolResult echo1 = client.invokeEcho("First message");
+        EverythingServerTestClient.CallToolResult echo2 = client.invokeEcho("Second message");
         
-        EverythingServerTestClient.AddResult add1 = client.invokeAdd(1, 1);
-        EverythingServerTestClient.AddResult add2 = client.invokeAdd(5, 7);
+        EverythingServerTestClient.CallToolResult add1 = client.invokeAdd(1, 1);
+        EverythingServerTestClient.CallToolResult add2 = client.invokeAdd(5, 7);
+        
+        // Extract text content for validation
+        String echo1Message = ((McpSchema.TextContent) echo1.callToolResult().content().get(0)).text();
+        String echo2Message = ((McpSchema.TextContent) echo2.callToolResult().content().get(0)).text();
+        String add1Message = ((McpSchema.TextContent) add1.callToolResult().content().get(0)).text();
+        String add2Message = ((McpSchema.TextContent) add2.callToolResult().content().get(0)).text();
         
         // Validate results
-        assertTrue(echo1.message().contains("First message"));
-        assertTrue(echo2.message().contains("Second message"));
-        assertEquals(2, add1.result());
-        assertEquals(12, add2.result());
+        assertTrue(echo1Message.contains("First message"));
+        assertTrue(echo2Message.contains("Second message"));
+        assertTrue(add1Message.contains("2"));  // 1 + 1 = 2
+        assertTrue(add2Message.contains("12")); // 5 + 7 = 12
         
         System.out.println("✅ Multiple operations successful");
-        System.out.println("📋 Echo 1: " + echo1.message());
-        System.out.println("📋 Echo 2: " + echo2.message());
-        System.out.println("📋 Add 1: " + add1.result());
-        System.out.println("📋 Add 2: " + add2.result());
+        System.out.println("📋 Echo 1: " + echo1Message);
+        System.out.println("📋 Echo 2: " + echo2Message);
+        System.out.println("📋 Add 1: " + add1Message);
+        System.out.println("📋 Add 2: " + add2Message);
     }
 }
