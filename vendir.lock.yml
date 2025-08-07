@@ -1,0 +1,11 @@
+apiVersion: vendir.k14s.io/v1alpha1
+directories:
+- contents:
+  - git:
+      commitTitle: 'Merge pull request #2328 from kunalbabre/main...'
+      sha: 1028b32573b059de85d7c2fc40bea8b7864dddf7
+      tags:
+      - typescript-servers-0.6.2-2973-g1028b32
+    path: .
+  path: servers
+kind: LockConfig
