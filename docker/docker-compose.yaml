@@ -1,21 +1,21 @@
 services:
   everything-sse:
     image: mcp-everything:latest
-    command: sse
+    command: ["/app/entry-point.sh", "sse"]
     ports:
-      - "3001:3001"
+      - "3001:3001"  # SSE server on standard port
 
   everything-streamable:
     image: mcp-everything:latest
-    command: streamableHttp
+    command: ["/app/entry-point.sh", "streamableHttp"]
     ports:
-      - "4001:3001"  # External 4001 maps to internal 3001
+      - "4001:3001"  # Streamable HTTP server on port 4001
 
   mcp-inspector:
     image: mcp-everything:latest
-    command: inspector
+    command: ["/app/entry-point.sh", "inspector"]
     ports:
-      - "6274:6274"
-      - "6277:6277"
+      - "6274:6274"  # Inspector GUI on standard port
+      - "6277:6277"  # Inspector websocket port
 
 
