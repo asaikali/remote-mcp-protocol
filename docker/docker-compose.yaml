@@ -1,18 +1,21 @@
-version: "3.9"
-
 services:
   everything-sse:
     image: mcp-everything:latest
-    container_name: everything-sse
-    environment:
-      TARGET: sse
+    command: sse
     ports:
-      - "3001:3001"  # localhost:3001 → container:3001
+      - "3001:3001"
 
   everything-streamable:
     image: mcp-everything:latest
-    container_name: everything-streamable
-    environment:
-      TARGET: streamableHttp
+    command: streamableHttp
     ports:
-      - "4001:3001"  # localhost:4001 → container:3001
+      - "4001:3001"  # External 4001 maps to internal 3001
+
+  mcp-inspector:
+    image: mcp-everything:latest
+    command: inspector
+    ports:
+      - "6274:6274"
+      - "6277:6277"
+
+
