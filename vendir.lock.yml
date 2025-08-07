@@ -24,4 +24,12 @@ directories:
       - "2025-06-18"
     path: .
   path: resources/spec
+- contents:
+  - git:
+      commitTitle: Release version 0.11.1...
+      sha: 5365bf4805df06cd6bc8c094539d18d46137dae7
+      tags:
+      - v0.11.1
+    path: .
+  path: resources/java-sdk
 kind: LockConfig
