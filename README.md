@@ -19,8 +19,17 @@ This repository contains tools and examples for exploring the **Model Context Pr
    npm install
    npm run start:streamableHttp
    ```
+or
+```bash
+npx @modelcontextprotocol/server-everything sse
+```
 
-   This will start the **Everything Server** locally on port `3001`, exposing all MCP features for testing.
+or 
+```bash
+npx @modelcontextprotocol/server-everything streamableHttp
+```
+
+This will start the **Everything Server** locally on port `3001`, exposing all MCP features for testing.
 
 3. See [`scripts/README.md`](scripts/README.md) for script setup and usage instructions.
 4. See [`intellij/README.md`](intellij/README.md) for IntelliJ HTTP file usage examples.
