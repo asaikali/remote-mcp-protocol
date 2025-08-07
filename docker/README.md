@@ -4,7 +4,28 @@ This Docker environment provides a complete setup for exploring the Model Contex
 
 ## Quick Start
 
-### 1. Build and Start Services
+### Method 1: Using the Everything Script (Recommended)
+
+The `everything` script provides a simple interface to manage the MCP stack:
+
+```bash
+# Build the Docker image
+./everything build
+
+# Start all services
+./everything start
+
+# Check status and connection info
+./everything status
+
+# View logs
+./everything logs
+
+# Stop services
+./everything stop
+```
+
+### Method 2: Direct Docker Commands
 
 ```bash
 # Build the Docker image
@@ -52,14 +73,63 @@ When the inspector (running inside Docker) tries to connect to `http://localhost
 | SSE Server | 3001 | http://localhost:3001/sse | Server-Sent Events MCP server |
 | Streamable HTTP Server | 4001 | http://localhost:4001/mcp | HTTP streaming MCP server |
 
-## Management Commands
+## Everything Script Commands
+
+The `everything` script provides convenient management commands with color-coded output and error handling:
+
+### Available Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `build` | Build the MCP everything Docker image | `./everything build` |
+| `start` | Start all containers with status display | `./everything start` |
+| `status` | Show container status and connection URLs | `./everything status` |
+| `stop` | Stop containers and clean up orphans | `./everything stop` |
+| `clean` | Stop containers and remove volumes | `./everything clean` |
+| `fix` | Detect and resolve port conflicts | `./everything fix` |
+| `logs` | Show container logs (all or specific service) | `./everything logs mcp-inspector` |
+
+### Usage Examples
+
+```bash
+# Build and start everything
+./everything build
+./everything start
+
+# Check what's running and get connection URLs
+./everything status
+
+# View logs from all containers
+./everything logs
+
+# View logs from specific service with options
+./everything logs mcp-inspector --tail 50
+
+# If you have port conflicts, fix them automatically
+./everything fix
+
+# Clean shutdown
+./everything stop
+```
+
+### Features
+
+- **Color-coded output**: Green for success, yellow for warnings, red for errors
+- **Port conflict detection**: Automatically detects if ports are in use by other containers
+- **Connection information**: Shows direct URLs and inspector connection URLs
+- **Orphan cleanup**: Removes orphaned containers when stopping services
+- **Smart container management**: Uses Docker Compose when possible, falls back to docker commands
+
+## Direct Docker Commands (Alternative)
+
+If you prefer using Docker commands directly:
 
 ```bash
 # Start services
 docker compose up -d
 
 # Stop services  
-docker compose down
+docker compose down --remove-orphans
 
 # View logs
 docker compose logs
@@ -67,8 +137,8 @@ docker compose logs
 # Restart a specific service
 docker compose restart mcp-inspector
 
-# Clean up everything including orphaned containers
-docker compose down --remove-orphans
+# Clean up everything including volumes
+docker compose down -v --remove-orphans
 ```
 
 ---
