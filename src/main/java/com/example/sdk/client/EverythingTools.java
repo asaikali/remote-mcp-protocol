@@ -445,6 +445,47 @@ public class EverythingTools {
     }
     
     // ========================================
+    // Generic Tool Methods (for testing and advanced usage)
+    // ========================================
+    
+    /**
+     * Call a tool with generic name and arguments. Primarily intended for testing.
+     * 
+     * @param toolName name of the tool to call
+     * @param arguments arguments to pass to the tool (can be null)
+     * @return tool result
+     * @throws EverythingToolException if the tool call fails
+     */
+    public CallToolResult callTool(String toolName, Map<String, Object> arguments) {
+        if (toolName == null) {
+            throw new EverythingToolException("Tool name cannot be null");
+        }
+        if (toolName.trim().isEmpty()) {
+            throw new EverythingToolException("Tool name cannot be empty");
+        }
+        
+        logger.debug("Calling generic tool: {} with arguments: {}", toolName, arguments);
+        
+        try {
+            CallToolRequest request = new CallToolRequest(toolName, arguments);
+            CallToolResult result = mcpClient.callTool(request);
+            
+            if (result.isError() != null && result.isError()) {
+                throw new EverythingToolException("Tool '" + toolName + "' returned error: " + getErrorMessage(result));
+            }
+            
+            logger.debug("Generic tool '{}' executed successfully", toolName);
+            return result;
+            
+        } catch (Exception e) {
+            if (e instanceof EverythingToolException) {
+                throw e;
+            }
+            throw new EverythingToolException("Failed to execute tool: " + toolName, e);
+        }
+    }
+
+    // ========================================
     // Helper Methods
     // ========================================
     
