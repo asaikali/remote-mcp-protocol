@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Console appender with pattern that excludes verbose server instructions -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Suppress verbose MCP server instructions logging -->
+    <logger name="io.modelcontextprotocol.client.LifecycleInitializer" level="WARN"/>
+    
+    <!-- Keep other MCP SDK logging at INFO level -->
+    <logger name="io.modelcontextprotocol" level="INFO"/>
+    
+    <!-- Keep test client logging at INFO level -->
+    <logger name="com.example.sdk.client" level="INFO"/>
+    
+    <!-- Suppress Spring Boot test startup noise -->
+    <logger name="org.springframework.boot.test.context" level="WARN"/>
+    <logger name="org.springframework.test.context" level="WARN"/>
+    
+    <!-- Suppress Testcontainers verbose logging -->
+    <logger name="org.testcontainers" level="INFO"/>
+    <logger name="tc." level="WARN"/>
+    
+    <!-- Root logger -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
