@@ -3,6 +3,8 @@ package com.example.everything.sdk.client;
 import java.net.InetSocketAddress;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -51,6 +53,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Testcontainers
 @DisplayName("Everything Server Test Infrastructure")
 public abstract class EverythingServerTest {
+    
+    private static final Logger log = LoggerFactory.getLogger(EverythingServerTest.class);
 
     protected static final int MCP_PORT = 3001;
 
@@ -170,9 +174,9 @@ public abstract class EverythingServerTest {
         assertTrue(isPortOpen(sseHost, ssePort), 
                 "HTTP_SSE server should be accessible at " + sseHost + ":" + ssePort);
         
-        System.out.println("✅ Network Connectivity Verified:");
-        System.out.println("📡 HTTP_STREAMABLE: " + getStreamableServerUrl());
-        System.out.println("📡 HTTP_SSE: " + getSseServerUrl());
+        log.info("✅ Network Connectivity Verified:");
+        log.info("📡 HTTP_STREAMABLE: {}", getStreamableServerUrl());
+        log.info("📡 HTTP_SSE: {}", getSseServerUrl());
     }
 
     /**

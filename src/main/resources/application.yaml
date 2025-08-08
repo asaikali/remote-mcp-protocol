@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: remote-mcp-protocol
+
+logging:
+  level:
+    # Suppress verbose MCP server instructions logging
+    io.modelcontextprotocol.client.LifecycleInitializer: WARN
+    # Keep other MCP SDK logging at INFO level
+    io.modelcontextprotocol: INFO
+    # Keep test client logging at INFO level
+    com.example.sdk.client: INFO
+    # Suppress Spring Boot test startup noise
+    org.springframework.boot.test.context: WARN
+    org.springframework.test.context: WARN
+    # Suppress Testcontainers verbose logging
+    org.testcontainers: INFO
+    tc: WARN
+    # Root logger
+    root: INFO

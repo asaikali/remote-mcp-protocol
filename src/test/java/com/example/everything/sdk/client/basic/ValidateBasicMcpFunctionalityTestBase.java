@@ -10,6 +10,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.List;
@@ -37,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * - Easier CI/CD integration (can run only supported transports)
  */
 public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingServerTest {
+    
+    private static final Logger log = LoggerFactory.getLogger(ValidateBasicMcpFunctionalityTestBase.class);
 
     private String baseUrl;
     private EverythingTestClient client;
@@ -87,7 +91,7 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
      */
     protected EverythingTestClient createAndInitializeClient() {
         if (!isTransportSupported()) {
-            System.out.println("⚠️ Transport " + getTransportType() + " is not supported by the current server setup");
+            log.warn("⚠️ Transport {} is not supported by the current server setup", getTransportType());
             return null;
         }
 
@@ -100,16 +104,16 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
         try {
             boolean initialized = client.initialize();
             if (initialized) {
-                System.out.println("✅ Connected to MCP server using " + getTransportType() + ": " + client.getServerInfo().name());
+                log.info("✅ Connected to MCP server using {}: {}", getTransportType(), client.getServerInfo().name());
                 return client;
             } else {
-                System.out.println("⚠️ Failed to initialize client with " + getTransportType() + " transport");
+                log.warn("⚠️ Failed to initialize client with {} transport", getTransportType());
                 client.close();
                 client = null;
                 return null;
             }
         } catch (Exception e) {
-            System.out.println("⚠️ Exception during " + getTransportType() + " initialization: " + e.getMessage());
+            log.warn("⚠️ Exception during {} initialization: {}", getTransportType(), e.getMessage());
             client.close();
             client = null;
             return null;
@@ -121,11 +125,11 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
     void testListPrompts() {
         EverythingTestClient testClient = createAndInitializeClient();
         if (testClient == null) {
-            System.out.println("⚠️ Skipping prompt listing test for " + getTransportType() + " (not supported)");
+            log.warn("⚠️ Skipping prompt listing test for {} (not supported)", getTransportType());
             return;
         }
         
-        System.out.println("\n📝 Testing Prompt Listing with " + getTransportType() + "...");
+        log.info("📝 Testing Prompt Listing with {}...", getTransportType());
         EverythingPrompts prompts = testClient.getPrompts();
         List<Prompt> availablePrompts = prompts.getAvailablePrompts();
         
@@ -142,7 +146,7 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
         assertTrue(hasComplexPrompt, "Should have complex_prompt");  
         assertTrue(hasResourcePrompt, "Should have resource_prompt");
         
-        System.out.println("✅ " + getTransportType() + " Prompts: Found " + availablePrompts.size() + " prompts (simple, complex, resource)");
+        log.info("✅ {} Prompts: Found {} prompts (simple, complex, resource)", getTransportType(), availablePrompts.size());
     }
 
     @Test
@@ -150,11 +154,11 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
     void testListTools() {
         EverythingTestClient testClient = createAndInitializeClient();
         if (testClient == null) {
-            System.out.println("⚠️ Skipping tool listing test for " + getTransportType() + " (not supported)");
+            log.warn("⚠️ Skipping tool listing test for {} (not supported)", getTransportType());
             return;
         }
         
-        System.out.println("\n🔧 Testing Tool Listing with " + getTransportType() + "...");
+        log.info("🔧 Testing Tool Listing with {}...", getTransportType());
         EverythingTools tools = testClient.getTools();
         List<Tool> availableTools = tools.getAvailableTools();
         
@@ -171,7 +175,7 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
         assertTrue(hasEchoTool, "Should have echo tool");
         assertTrue(hasLongRunningTool, "Should have longRunningOperation tool");
         
-        System.out.println("✅ " + getTransportType() + " Tools: Found " + availableTools.size() + " tools (including add, echo, longRunningOperation)");
+        log.info("✅ {} Tools: Found {} tools (including add, echo, longRunningOperation)", getTransportType(), availableTools.size());
     }
 
     @Test
@@ -179,11 +183,11 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
     void testListResources() {
         EverythingTestClient testClient = createAndInitializeClient();
         if (testClient == null) {
-            System.out.println("⚠️ Skipping resource listing test for " + getTransportType() + " (not supported)");
+            log.warn("⚠️ Skipping resource listing test for {} (not supported)", getTransportType());
             return;
         }
         
-        System.out.println("\n📚 Testing Resource Listing with " + getTransportType() + "...");
+        log.info("📚 Testing Resource Listing with {}...", getTransportType());
         EverythingResources resources = testClient.getResources();
         List<Resource> availableResources = resources.getAvailableResources();
         
@@ -191,7 +195,7 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
         assertFalse(availableResources.isEmpty(), "Should have at least one resource");
         assertTrue(availableResources.size() >= 10, "Should have substantial number of resources");
         
-        System.out.println("✅ " + getTransportType() + " Resources: Found " + availableResources.size() + " resources");
+        log.info("✅ {} Resources: Found {} resources", getTransportType(), availableResources.size());
     }
 
     @Test
@@ -199,11 +203,11 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
     void testAddToolExecution() {
         EverythingTestClient testClient = createAndInitializeClient();
         if (testClient == null) {
-            System.out.println("⚠️ Skipping add tool test for " + getTransportType() + " (not supported)");
+            log.warn("⚠️ Skipping add tool test for {} (not supported)", getTransportType());
             return;
         }
         
-        System.out.println("\n➕ Testing Add Tool Execution with " + getTransportType() + "...");
+        log.info("➕ Testing Add Tool Execution with {}...", getTransportType());
         EverythingTools tools = testClient.getTools();
         
         int operandA = 15;
@@ -213,7 +217,7 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
         int actualSum = tools.add(operandA, operandB);
         assertEquals(expectedSum, actualSum, "Add tool should return correct sum");
         
-        System.out.println("✅ " + getTransportType() + " Add Tool: " + operandA + " + " + operandB + " = " + actualSum + " ✓");
+        log.info("✅ {} Add Tool: {} + {} = {} ✓", getTransportType(), operandA, operandB, actualSum);
     }
 
     @Test
@@ -221,11 +225,11 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
     void testSimplePromptRetrieval() {
         EverythingTestClient testClient = createAndInitializeClient();
         if (testClient == null) {
-            System.out.println("⚠️ Skipping simple prompt test for " + getTransportType() + " (not supported)");
+            log.warn("⚠️ Skipping simple prompt test for {} (not supported)", getTransportType());
             return;
         }
         
-        System.out.println("\n💬 Testing Simple Prompt Retrieval with " + getTransportType() + "...");
+        log.info("💬 Testing Simple Prompt Retrieval with {}...", getTransportType());
         EverythingPrompts prompts = testClient.getPrompts();
         GetPromptResult simplePromptResult = prompts.getSimplePrompt();
         
@@ -240,8 +244,8 @@ public abstract class ValidateBasicMcpFunctionalityTestBase extends EverythingSe
         assertNotNull(promptText, "Prompt text should not be null");
         assertFalse(promptText.trim().isEmpty(), "Prompt text should not be empty");
         
-        System.out.println("✅ " + getTransportType() + " Simple Prompt: Retrieved successfully - \"" + 
-                (promptText.length() > 50 ? promptText.substring(0, 50) + "..." : promptText) + "\"");
+        log.info("✅ {} Simple Prompt: Retrieved successfully - \"{}\"", getTransportType(), 
+                promptText.length() > 50 ? promptText.substring(0, 50) + "..." : promptText);
     }
 
     // Additional test methods would go here...
