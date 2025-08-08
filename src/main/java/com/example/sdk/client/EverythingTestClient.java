@@ -58,6 +58,7 @@ public class EverythingTestClient implements AutoCloseable {
     private McpSyncClient mcpClient;
     private EverythingTools toolsHelper;
     private EverythingResources resourcesHelper;
+    private EverythingPrompts promptsHelper;
     private boolean initialized = false;
     private InitializeResult initializeResult;
     
@@ -111,6 +112,7 @@ public class EverythingTestClient implements AutoCloseable {
             // Create helper instances
             toolsHelper = new EverythingTools(mcpClient);
             resourcesHelper = new EverythingResources(mcpClient);
+            promptsHelper = new EverythingPrompts(mcpClient);
             
             initialized = true;
             
@@ -215,6 +217,17 @@ public class EverythingTestClient implements AutoCloseable {
     }
     
     /**
+     * Get the prompts helper for accessing Everything Server prompts.
+     * 
+     * @return prompts helper instance
+     * @throws IllegalStateException if not initialized
+     */
+    public EverythingPrompts getPrompts() {
+        ensureInitialized();
+        return promptsHelper;
+    }
+    
+    /**
      * Test server connectivity with a ping.
      * 
      * @return true if ping successful, false otherwise
@@ -296,6 +309,7 @@ public class EverythingTestClient implements AutoCloseable {
                 mcpClient = null;
                 toolsHelper = null;
                 resourcesHelper = null;
+                promptsHelper = null;
             }
         }
     }

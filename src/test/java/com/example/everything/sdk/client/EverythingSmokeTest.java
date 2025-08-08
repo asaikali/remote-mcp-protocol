@@ -3,7 +3,9 @@ package com.example.everything.sdk.client;
 import com.example.sdk.client.EverythingTestClient;
 import com.example.sdk.client.EverythingTools;
 import com.example.sdk.client.EverythingResources;
+import com.example.sdk.client.EverythingPrompts;
 import io.modelcontextprotocol.spec.McpSchema.Resource;
+import io.modelcontextprotocol.spec.McpSchema.GetPromptResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -182,6 +184,87 @@ class EverythingSmokeTest {
     }
 
     @Test
+    void smokeTest_simplePrompt_shouldWork() {
+        // Given
+        assertTrue(client.initialize(), "Client should initialize");
+        EverythingPrompts prompts = client.getPrompts();
+
+        // When
+        GetPromptResult result = prompts.getSimplePrompt();
+
+        // Then
+        assertNotNull(result, "Simple prompt result should not be null");
+        assertNotNull(result.messages(), "Messages should not be null");
+        assertFalse(result.messages().isEmpty(), "Should have at least one message");
+        
+        List<String> textContent = prompts.extractTextContent(result);
+        assertFalse(textContent.isEmpty(), "Should have text content");
+        assertTrue(textContent.get(0).contains("simple prompt"), "Should contain simple prompt text");
+        
+        System.out.println("✅ Simple prompt smoke test passed");
+        System.out.println("📋 Messages: " + result.messages().size());
+        System.out.println("📋 First message: " + textContent.get(0));
+    }
+
+    @Test
+    void smokeTest_complexPrompt_shouldWork() {
+        // Given
+        assertTrue(client.initialize(), "Client should initialize");
+        EverythingPrompts prompts = client.getPrompts();
+
+        // When
+        GetPromptResult result = prompts.getComplexPrompt("0.7", "casual");
+
+        // Then
+        assertNotNull(result, "Complex prompt result should not be null");
+        assertNotNull(result.messages(), "Messages should not be null");
+        assertTrue(result.messages().size() >= 2, "Should have multiple messages for complex prompt");
+        
+        List<String> textContent = prompts.extractTextContent(result);
+        assertFalse(textContent.isEmpty(), "Should have text content");
+        assertTrue(textContent.get(0).contains("complex prompt"), "Should contain complex prompt text");
+        assertTrue(textContent.get(0).contains("temperature=0.7"), "Should contain temperature parameter");
+        assertTrue(textContent.get(0).contains("style=casual"), "Should contain style parameter");
+        
+        boolean hasImageContent = prompts.hasImageContent(result);
+        assertTrue(hasImageContent, "Complex prompt should include image content");
+        
+        System.out.println("✅ Complex prompt smoke test passed");
+        System.out.println("📋 Messages: " + result.messages().size());
+        System.out.println("📋 Has image content: " + hasImageContent);
+        System.out.println("📋 First message: " + textContent.get(0));
+    }
+
+    @Test
+    void smokeTest_resourcePrompt_shouldWork() {
+        // Given
+        assertTrue(client.initialize(), "Client should initialize");
+        EverythingPrompts prompts = client.getPrompts();
+        int testResourceId = 5;
+
+        // When
+        GetPromptResult result = prompts.getResourcePrompt(testResourceId);
+
+        // Then
+        assertNotNull(result, "Resource prompt result should not be null");
+        assertNotNull(result.messages(), "Messages should not be null");
+        assertTrue(result.messages().size() >= 2, "Should have multiple messages for resource prompt");
+        
+        List<String> textContent = prompts.extractTextContent(result);
+        assertFalse(textContent.isEmpty(), "Should have text content");
+        assertTrue(textContent.get(0).contains("Resource " + testResourceId), "Should reference the specific resource");
+        
+        boolean hasResourceContent = prompts.hasResourceContent(result);
+        assertTrue(hasResourceContent, "Resource prompt should include resource content");
+        
+        System.out.println("✅ Resource prompt smoke test passed");
+        System.out.println("📋 Messages: " + result.messages().size());
+        System.out.println("📋 Resource ID: " + testResourceId);
+        System.out.println("📋 Has resource content: " + hasResourceContent);
+        System.out.println("📋 First message: " + textContent.get(0));
+    }
+
+    @Test
     void smokeTest_comprehensiveFlow_shouldWork() {
         System.out.println("🚀 Starting comprehensive smoke test flow");
 
@@ -210,14 +293,28 @@ class EverythingSmokeTest {
         }
         System.out.println("✓ Step 3: Resources functionality validated");
 
-        // Step 4: Test connectivity
-        assertTrue(client.ping(), "Ping should work");
-        System.out.println("✓ Step 4: Connectivity test passed");
+        // Step 4: Test prompts
+        EverythingPrompts prompts = client.getPrompts();
+        GetPromptResult simplePrompt = prompts.getSimplePrompt();
+        assertNotNull(simplePrompt, "Simple prompt should work");
+        
+        GetPromptResult complexPrompt = prompts.getComplexPrompt("0.5", "technical");
+        assertNotNull(complexPrompt, "Complex prompt should work");
+        assertTrue(prompts.hasImageContent(complexPrompt), "Complex prompt should have image content");
+        
+        GetPromptResult resourcePrompt = prompts.getResourcePrompt(3);
+        assertNotNull(resourcePrompt, "Resource prompt should work");
+        assertTrue(prompts.hasResourceContent(resourcePrompt), "Resource prompt should have resource content");
+        System.out.println("✓ Step 4: Prompts functionality validated");
 
-        // Step 5: Verify server info
+        // Step 5: Test connectivity
+        assertTrue(client.ping(), "Ping should work");
+        System.out.println("✓ Step 5: Connectivity test passed");
+
+        // Step 6: Verify server info
         assertNotNull(client.getServerInfo(), "Server info should be available");
         assertNotNull(client.getServerInfo().name(), "Server name should be available");
-        System.out.println("✓ Step 5: Server info validated");
+        System.out.println("✓ Step 6: Server info validated");
 
         System.out.println("🎉 Comprehensive smoke test completed successfully!");
         System.out.println("📊 Smoke Test Summary:");
@@ -225,6 +322,9 @@ class EverythingSmokeTest {
         System.out.println("   - Add Tool: ✅ PASSED (5 + 7 = " + addResult + ")");
         System.out.println("   - Echo Tool: ✅ PASSED");
         System.out.println("   - Resources: ✅ PASSED (" + resourcesList.size() + " available)");
+        System.out.println("   - Simple Prompt: ✅ PASSED");
+        System.out.println("   - Complex Prompt: ✅ PASSED (with image content)");
+        System.out.println("   - Resource Prompt: ✅ PASSED (with resource content)");
         System.out.println("   - Connectivity: ✅ PASSED");
         System.out.println("   - Server Info: ✅ PASSED");
         System.out.println("   🎯 All smoke tests passed - Library is functional!");
