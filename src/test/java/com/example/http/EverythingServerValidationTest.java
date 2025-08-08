@@ -1,6 +1,5 @@
-package com.example;
+package com.example.http;
 
-import com.example.everything.EverythingServerTestClient;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -1,5 +1,9 @@
-package com.example.everything.client;
+package com.example.everything.sdk.client;
 
+import com.example.sdk.client.EverythingResources;
+import com.example.sdk.client.EverythingTestClient;
+import com.example.sdk.client.EverythingTestClient.TransportType;
+import com.example.sdk.client.EverythingTools;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,7 +66,7 @@ class EverythingTestClientIntegrationTest {
         // When
         client = EverythingTestClient.builder()
                 .baseUrl(baseUrl)
-                .transport(EverythingTestClient.TransportType.HTTP_STREAMABLE)
+                .transport(TransportType.HTTP_STREAMABLE)
                 .requestTimeout(Duration.ofSeconds(30))
                 .build();
 
@@ -76,7 +80,7 @@ class EverythingTestClientIntegrationTest {
         // Given
         client = EverythingTestClient.builder()
                 .baseUrl(baseUrl)
-                .transport(EverythingTestClient.TransportType.HTTP_STREAMABLE)
+                .transport(TransportType.HTTP_STREAMABLE)
                 .build();
 
         // When
@@ -207,7 +211,7 @@ class EverythingTestClientIntegrationTest {
         // Test HTTP Streamable (primary transport)
         client = EverythingTestClient.builder()
                 .baseUrl(baseUrl)
-                .transport(EverythingTestClient.TransportType.HTTP_STREAMABLE)
+                .transport(TransportType.HTTP_STREAMABLE)
                 .build();
         
         assertTrue(client.initialize(), "HTTP Streamable should initialize");
@@ -262,7 +266,7 @@ class EverythingTestClientIntegrationTest {
         // Step 1: Create and initialize client
         client = EverythingTestClient.builder()
                 .baseUrl(baseUrl)
-                .transport(EverythingTestClient.TransportType.HTTP_STREAMABLE)
+                .transport(TransportType.HTTP_STREAMABLE)
                 .requestTimeout(Duration.ofSeconds(30))
                 .build();
         

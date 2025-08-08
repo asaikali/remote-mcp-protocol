@@ -1,11 +1,11 @@
-package com.example.webclient;
+package com.example.http;
 
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Scanner;
 
-public class McpEverythingClient {
+public class McpEverythingWebClient {
 
     private static final String BASE_URL = "http://localhost:4001/mcp";
 

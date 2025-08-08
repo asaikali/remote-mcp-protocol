@@ -1,4 +1,4 @@
-package com.example.everything.client;
+package com.example.sdk.client;
 
 /**
  * Example usage of the EverythingTestClient library demonstrating
