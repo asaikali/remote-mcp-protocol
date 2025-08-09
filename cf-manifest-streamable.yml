@@ -1,0 +1,19 @@
+---
+applications:
+- name: mcp-everything-streamable
+  memory: 512M
+  instances: 1
+  buildpacks:
+    - nodejs_buildpack
+  stack: cflinuxfs4
+  path: ./resources/servers/src/everything
+  command: npm run build && npm run start:streamableHttp
+  env:
+    NODE_ENV: production
+    PORT: $PORT
+  services: []
+  routes:
+  - route: mcp-everything-streamable.apps.internal
+  health-check-type: http
+  health-check-http-endpoint: /health
+  timeout: 60
