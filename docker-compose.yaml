@@ -1,17 +1,26 @@
 services:
   everything-sse:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "sse"]
     ports:
       - "3001:3001"  # SSE server on standard port
 
   everything-streamable:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "streamableHttp"]
     ports:
       - "4001:3001"  # Streamable HTTP server on port 4001
 
   mcp-inspector:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "inspector"]
     ports:

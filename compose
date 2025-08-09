@@ -167,7 +167,7 @@ show_port_conflicts() {
     fi
   done
   # Show quick fix options
-  log info "Quick fix: ./everything fix"
+  log info "Quick fix: ./compose fix"
 }
 
 #------------------------------------------------------------------------------
@@ -228,7 +228,7 @@ show_connections() {
 #   build_image
 build_image() {
   log header "Building MCP Everything Docker image"
-  if docker build -t mcp-everything:latest "$SCRIPT_DIR"; then
+  if docker build -t mcp-everything:latest "$SCRIPT_DIR/docker"; then
     log success "Docker image built successfully"
   else
     log error "Failed to build Docker image"
@@ -245,7 +245,7 @@ build_image() {
 #   usage
 usage() {
   # Display the main usage header with bold formatting
-  printf "${BOLD}Usage:${NC} ./everything <command>\n\n"
+  printf "${BOLD}Usage:${NC} ./compose <command>\n\n"
   printf "Commands:\n"
   # List all available commands with color coding matching their function
   printf "  ${BLUE}build${NC}         Build the MCP everything Docker image\n"
@@ -256,10 +256,10 @@ usage() {
   printf "  ${YELLOW}fix${NC}           Detect & fix port conflicts\n"
   printf "  ${BLUE}logs${NC}          Show container logs (optionally specify service)\n"
   printf "\nExamples:\n"
-  printf "  ./everything build\n"
-  printf "  ./everything start\n"
-  printf "  ./everything logs mcp-inspector\n"
-  printf "  ./everything logs --tail 50\n"
+  printf "  ./compose build\n"
+  printf "  ./compose start\n"
+  printf "  ./compose logs mcp-inspector\n"
+  printf "  ./compose logs --tail 50\n"
 }
 
 #------------------------------------------------------------------------------
@@ -272,7 +272,7 @@ require_cmd docker
 # This ensures the script works correctly regardless of where it's called from
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-# Find the Docker Compose file in the script directory
+# Find the Docker Compose file in the current directory (project root)
 # Exit with error if no compose file is found
 COMPOSE_FILE="$(find_compose_file "$SCRIPT_DIR")" || { log error "No compose file in $SCRIPT_DIR"; exit 1; }
 
