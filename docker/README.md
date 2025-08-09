@@ -4,26 +4,31 @@ This Docker environment provides a complete setup for exploring the Model Contex
 
 ## Quick Start
 
-### Method 1: Using the Everything Script (Recommended)
+### Method 1: Using the Compose Script (Recommended)
 
-The `everything` script provides a simple interface to manage the MCP stack:
+The `compose` script (located at the root of the repository) provides a simple interface to manage the MCP stack:
 
 ```bash
-# Build the Docker image
-./everything build
+# From the repository root:
+./compose build
+
+# Or if using direnv (which adds the root to PATH):
+compose build
 
 # Start all services
-./everything start
+compose start
 
 # Check status and connection info
-./everything status
+compose status
 
 # View logs
-./everything logs
+compose logs
 
 # Stop services
-./everything stop
+compose stop
 ```
+
+**Note**: If you have [direnv](https://direnv.net) installed and run `direnv allow`, the compose script will be available in your PATH from anywhere within the repository.
 
 ### Method 2: Direct Docker Commands
 
@@ -73,43 +78,43 @@ When the inspector (running inside Docker) tries to connect to `http://localhost
 | SSE Server | 3001 | http://localhost:3001/sse | Server-Sent Events MCP server |
 | Streamable HTTP Server | 4001 | http://localhost:4001/mcp | HTTP streaming MCP server |
 
-## Everything Script Commands
+## Compose Script Commands
 
-The `everything` script provides convenient management commands with color-coded output and error handling:
+The `compose` script provides convenient management commands with color-coded output and error handling:
 
 ### Available Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `build` | Build the MCP everything Docker image | `./everything build` |
-| `start` | Start all containers with status display | `./everything start` |
-| `status` | Show container status and connection URLs | `./everything status` |
-| `stop` | Stop containers and clean up orphans | `./everything stop` |
-| `clean` | Stop containers and remove volumes | `./everything clean` |
-| `fix` | Detect and resolve port conflicts | `./everything fix` |
-| `logs` | Show container logs (all or specific service) | `./everything logs mcp-inspector` |
+| `build` | Build the MCP everything Docker image | `compose build` |
+| `start` | Start all containers with status display | `compose start` |
+| `status` | Show container status and connection URLs | `compose status` |
+| `stop` | Stop containers and clean up orphans | `compose stop` |
+| `clean` | Stop containers and remove volumes | `compose clean` |
+| `fix` | Detect and resolve port conflicts | `compose fix` |
+| `logs` | Show container logs (all or specific service) | `compose logs mcp-inspector` |
 
 ### Usage Examples
 
 ```bash
 # Build and start everything
-./everything build
-./everything start
+compose build
+compose start
 
 # Check what's running and get connection URLs
-./everything status
+compose status
 
 # View logs from all containers
-./everything logs
+compose logs
 
 # View logs from specific service with options
-./everything logs mcp-inspector --tail 50
+compose logs mcp-inspector --tail 50
 
 # If you have port conflicts, fix them automatically
-./everything fix
+compose fix
 
 # Clean shutdown
-./everything stop
+compose stop
 ```
 
 ### Features
