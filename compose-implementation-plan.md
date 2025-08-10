@@ -28,11 +28,12 @@ Based on the design constraints in `compose-design.md`, here's the implementatio
 - Implement `get_profiles()` function using `docker compose config --profiles`
 - Implement profile parsing to handle:
   - No profiles specified → use "default" profile
-  - "all" profile specified → use all available profiles  
+  - Specific profiles specified → use those profiles (including "all" and "default")
   - Space-separated profiles → use specified profiles
-- Handle reserved profile names:
-  - "default": Explicit profile that developers set on services
-  - "all": Meta-profile that expands to all available profiles (not set on services directly)
+- Handle reserved profile names (both are real profiles in compose.yaml):
+  - "default": Explicit profile that developers set on services for default development environment
+  - "all": Explicit profile that developers set on services that should run when everything is needed
+- Most services will have both profiles: `profiles: ["all", "default"]` (explicit, no inheritance)
 - Add profile validation in service check (ensure all services have profiles)
 
 ## Phase 2: Command Implementation
@@ -47,15 +48,15 @@ Implement commands that wrap docker compose with formatting:
 
 Each command should:
 - Load environment via `load_env()`
-- Parse profiles (default to "default" profile, expand "all" to all available profiles)
+- Parse profiles (default to "default" profile, "all" is treated as a regular profile)
 - Add visual dividers showing which profile is being operated on
 - Call `docker compose` with appropriate `--profile` flags
 
 ### 2.2 Custom Commands
 - `clean [profiles...]` - Remove volumes and networks for specified profiles
-- `profiles` - List all available profiles from compose.yaml (including reserved profiles explanation)
+- `profiles` - List all available profiles from compose.yaml (explain "default" and "all" conventions)
 - `status [profiles...]` - Show connection information using `status.*` labels
-- All custom commands support the "all" meta-profile: `compose status all`, `compose clean all`
+- All custom commands treat "all" and "default" as regular profiles (no special expansion logic)
 
 ## Phase 3: Status Command Implementation
 
@@ -100,8 +101,7 @@ load_env()
 
 # Profile management
 get_profiles()
-parse_profiles()              # Handle "default", "all", and specific profiles
-expand_all_profile()          # Convert "all" to list of actual profiles
+parse_profiles()              # Handle "default", "all", and specific profiles (all are regular profiles)
 build_profile_args()
 
 # Docker compose wrapper
@@ -123,18 +123,17 @@ case $cmd in
     validate_conventions
     load_env
     profiles=$(parse_profiles "$@")           # Handle "default", "all", specific profiles
-    expanded_profiles=$(expand_all_profile "$profiles")  # Convert "all" to actual profiles
-    show_profile_divider "$expanded_profiles"
-    docker_compose_with_profiles "$cmd" "$expanded_profiles" "${remaining_args[@]}"
+    show_profile_divider "$profiles"
+    docker_compose_with_profiles "$cmd" "$profiles" "${remaining_args[@]}"
     ;;
   clean)
-    # Custom implementation for volume/network cleanup (supports "all" profile)
+    # Custom implementation for volume/network cleanup 
     ;;
   status)
-    # Custom implementation using label extraction (supports "all" profile)
+    # Custom implementation using label extraction
     ;;
   profiles)
-    # List available profiles + explain reserved profiles ("default", "all")
+    # List available profiles + explain "default"/"all" conventions
     ;;
   *)
     show_usage
@@ -176,4 +175,30 @@ esac
 5. Test new script alongside current system
 6. Replace old scripts once validated
 
-This implementation maintains simplicity by leveraging Docker Compose's built-in features while adding the necessary conventions and developer experience improvements.
+## Profile Configuration Philosophy
+
+This implementation chooses **explicit over magic**:
+
+### ✅ **Explicit Profile Configuration**
+```yaml
+services:
+  db:
+    image: postgres:17
+    profiles: ["all", "default"]    # Explicit: runs in both scenarios
+  cache:
+    image: redis:7  
+    profiles: ["all"]               # Explicit: only runs with "compose up all"
+```
+
+### ✅ **Benefits of Explicitness**
+- **Zero Ambiguity**: Looking at compose.yaml shows exactly what runs when
+- **Simple Script Logic**: No profile inheritance, expansion, or magic
+- **Predictable Behavior**: `compose up` runs "default", `compose up all` runs "all"
+- **Easy Debugging**: Service behavior is visible in the YAML
+
+### ❌ **Accepted Trade-offs**
+- **Repetitive YAML**: Most services need `profiles: ["all", "default"]`
+- **More Verbose**: Extra lines in compose.yaml
+- **Manual Management**: Must remember to add profiles to new services
+
+**Conclusion**: The script prioritizes simplicity and maintainability over convenience, keeping complex logic out of bash and making all behavior explicit in the compose.yaml file.

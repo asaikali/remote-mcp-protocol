@@ -41,13 +41,25 @@ This document defines the design constraints for the `compose` script and associ
 ## Constraint 4 - Profile System
 
 - Every service in the compose file is required to have a profile explicitly set
-- There are two reserved profile names by convention:
-  - **"default"**: Must be explicitly set by developers for services they want in the default profile
-  - **"all"**: Reserved meta-profile that means all available profiles (not set on services directly)
+- There are two reserved profile names by convention that must be explicitly configured in compose.yaml:
+  - **"default"**: Must be explicitly set on services that should run in the default development environment
+  - **"all"**: Must be explicitly set on services that should run when everything is needed
+- Services are tagged with profiles explicitly in compose.yaml:
+  ```yaml
+  services:
+    db:
+      image: postgres:17
+      profiles: ["all", "default"]    # Runs in both default and all scenarios
+    cache:
+      image: redis:7
+      profiles: ["all"]               # Only runs with "compose up all"
+  ```
+- Most common services will need both profiles: `profiles: ["all", "default"]` (accepted trade-off for explicitness)
 - When you type `compose up` (or any compose command without profile specification), it runs all services with the "default" profile
-- When you type `compose up all`, it runs all services across all available profiles
+- When you type `compose up all`, it runs all services with the "all" profile
 - Space-separated profile names can be given for specific profile targeting
 - `compose up postgres mcp` means run it on postgres and mcp profiles
+- No profile inheritance or magic - what you see in compose.yaml is exactly what runs
 - If users type `docker compose up` directly in the root (without using the script), nothing will start because no profiles are specified - this forces them to use the script or be explicit about profiles
 
 ## Constraint 5 - Service Labeling System
@@ -102,5 +114,15 @@ These constraints define a simple, convention-based system that:
 4. **Enables generic functionality** - Service-agnostic through labeling conventions
 5. **Provides developer experience** - Clear error messages and helpful commands
 6. **Ensures predictability** - Explicit profiles and fail-fast behavior
+7. **Prioritizes explicitness over convenience** - Accepts repetitive YAML (`profiles: ["all", "default"]`) to avoid complex script logic
 
-The system is designed to be easy to understand, maintain, and extend while providing powerful functionality through well-defined conventions.
+## Profile Configuration Philosophy
+
+The system chooses **explicit over magic**:
+- ✅ **Explicit**: Every service clearly shows which profiles it belongs to
+- ✅ **Predictable**: What you see in compose.yaml is exactly what runs  
+- ✅ **Simple Script**: No complex inheritance or profile logic in bash
+- ❌ **Repetitive**: Most services need `profiles: ["all", "default"]`
+- ❌ **Verbose**: More YAML to write
+
+This trade-off keeps the script simple and maintainable while making service behavior completely transparent to developers.
