@@ -49,7 +49,7 @@ services:
   # PostgreSQL Services
   postgres:
     profiles: ["db", "default", "all"]
-    image: "postgres:17"
+    image: "${POSTGRES_IMAGE:-postgres:17}"
     container_name: mcp_postgres
     environment:
       POSTGRES_USER: "postgres"
@@ -69,7 +69,7 @@ services:
 
   pgadmin:
     profiles: ["db", "default", "all"]
-    image: "dpage/pgadmin4:9.6"
+    image: "${PGADMIN_IMAGE:-dpage/pgladmin4:9.6}"
     container_name: mcp_pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: "admin@example.com"
@@ -94,7 +94,7 @@ services:
   # Observability Services
   loki:
     profiles: ["observability", "all"]
-    image: grafana/loki:3.5.0
+    image: ${LOKI_IMAGE:-grafana/loki:3.5.0}
     command:
       - -config.file=/etc/loki/local-config.yaml
     volumes:
@@ -108,7 +108,7 @@ services:
 
   tempo:
     profiles: ["observability", "all"]
-    image: grafana/tempo:2.7.2
+    image: ${TEMPO_IMAGE:-grafana/tempo:2.7.2}
     command:
       - -config.file=/etc/tempo.yaml
     volumes:
@@ -123,7 +123,7 @@ services:
 
   otel-collector:
     profiles: ["observability", "all"]
-    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.125.0
+    image: ${OTEL_COLLECTOR_IMAGE:-ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.125.0}
     container_name: otel-collector
     volumes:
       - ./docker/observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
@@ -139,7 +139,7 @@ services:
 
   prometheus:
     profiles: ["observability", "all"]
-    image: prom/prometheus:v3.3.1
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.3.1}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     command:
@@ -158,7 +158,7 @@ services:
 
   grafana:
     profiles: ["observability", "all"]
-    image: grafana/grafana:12.0.0
+    image: ${GRAFANA_IMAGE:-grafana/grafana:12.0.0}
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin

@@ -56,20 +56,21 @@ This document defines the design constraints for the `compose` script and associ
 
 - Service name is part of every .env variable (consistent naming pattern)
 - Environment variable naming conventions:
-  - **Images**: `<SERVICE_NAME>_IMAGE` (e.g., `POSTGRES_IMAGE=postgres:17`)
-  - **Single port**: `<SERVICE_NAME>_PORT` (e.g., `POSTGRES_PORT=15432`)  
-  - **Multiple ports**: `<SERVICE_NAME>_PORT_<PORT_NAME>` (e.g., `EVERYTHING_MCP_PORT_SSE=3001`)
+  - **Images**: `<SERVICE_NAME>_IMAGE` (e.g., `POSTGRES_IMAGE=postgres:17`, `GRAFANA_IMAGE=grafana/grafana:12.0.0`)
+  - **Single port**: `<SERVICE_NAME>_PORT` (e.g., `PG_PORT=15432`, `GRAFANA_PORT=3000`)  
+  - **Multiple ports**: `<SERVICE_NAME>_PORT_<PORT_NAME>` (e.g., `MCP_INSPECTOR_WS_PORT=6277`)
   - **Credentials**: `<SERVICE_NAME>_CRED_<TYPE>` (e.g., `<SERVICE_NAME>_CRED_USERNAME`, `<SERVICE_NAME>_CRED_PASSWORD`, `<SERVICE_NAME>_CRED_API_KEY`)
+  - **Note**: MCP services use locally built images and don't need `_IMAGE` variables
 - **Usage in compose.yaml**: These environment variables are used via Docker Compose interpolation syntax:
   ```yaml
   services:
     postgres:
-      image: ${POSTGRES_IMAGE}
+      image: ${POSTGRES_IMAGE:-postgres:17}
       ports:
-        - "${POSTGRES_PORT}:5432"
+        - "${PG_PORT:-15432}:5432"
       environment:
-        POSTGRES_USER: ${POSTGRES_CRED_USERNAME}
-        POSTGRES_PASSWORD: ${POSTGRES_CRED_PASSWORD}
+        POSTGRES_USER: ${POSTGRES_CRED_USERNAME:-postgres}
+        POSTGRES_PASSWORD: ${POSTGRES_CRED_PASSWORD:-password}
   ```
 - **No Script Enforcement**: The script does not validate that compose.yaml uses these environment variables correctly - convention maintainers (Persona 2) enforce this manually to keep the script simple
 
