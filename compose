@@ -1,731 +1,332 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2034,SC1090
-#==============================================================================
-# MCP Everything Stack Container Manager
-#==============================================================================
+# =============================================================================
+# Compose Wrapper Script
+# =============================================================================
 #
-# This script provides a simple interface to manage the MCP everything stack
-# containers using Docker Compose. It supports the following commands:
+# A simple wrapper for Docker Compose that provides enhanced functionality
+# through conventions-based configuration and profile management.
 #
-# - build: Build the MCP everything Docker image
-# - start: Start the MCP stack containers in detached mode
-# - status: Display container status and connection information
-# - stop: Stop the running containers
-# - clean: Stop containers and remove all associated volumes
-# - logs: Show logs from all or specific containers
+# Features:
+#   - Profile-based service management (default, all, db, mcp, observability)
+#   - Status command with connection information from service labels
+#   - Environment variable loading (.env, .env.local support)
+#   - Convention validation (compose.yaml, service profiles)
+#   - Port conflict detection and troubleshooting
+#   - Visual output formatting and progress indicators
 #
-# The script handles port conflicts by detecting if the configured ports
-# are already in use by other containers, and provides options to resolve
-# these conflicts.
-#
-#==============================================================================
+# =============================================================================
 
-# Enable strict error handling:
-# -e: Exit immediately if a command exits with non-zero status
-# -E: Inherit ERR trap for functions
-# -u: Treat unset variables as errors
-# -o pipefail: Return value of a pipeline is the value of the last command to exit with non-zero status
+# Enable strict error handling
 set -Eeuo pipefail
-
-# Set Internal Field Separator to newline and tab for safer iteration over outputs
 IFS=$'\n\t'
 
 #------------------------------------------------------------------------------
-# Constants
+# Constants and Colors
 #------------------------------------------------------------------------------
-# ANSI color codes for formatted output
-# These are used to make the script output more readable and visually appealing
-readonly GREEN=$'\e[0;32m'   # Used for success messages and start command
-readonly RED=$'\e[0;31m'     # Used for error messages and clean command
-readonly YELLOW=$'\e[0;33m'  # Used for warnings, section headers, and stop/fix commands
-readonly BLUE=$'\e[0;34m'    # Used for info messages, main headers, and status command
-readonly BOLD=$'\e[1m'       # Used for emphasizing text like command names and labels
-readonly NC=$'\e[0m'         # No Color - used to reset formatting
+readonly RED=$'\e[0;31m'
+readonly GREEN=$'\e[0;32m'
+readonly YELLOW=$'\e[0;33m'
+readonly BLUE=$'\e[0;34m'
+readonly BOLD=$'\e[1m'
+readonly NC=$'\e[0m'
 
 #------------------------------------------------------------------------------
-# Logging helpers
+# Logging Functions
 #------------------------------------------------------------------------------
-# Function: log
-# Description: Prints a formatted message with color and a prefix based on the log level
-# Parameters:
-#   $1 - Log level: info, success, warn, error, header, or section
-#   $2+ - The message to display
-# Usage examples:
-#   log info "Starting containers"
-#   log error "Failed to start containers"
-#   log success "Containers started successfully"
-log() { # (level, msg)
-  local clr pre
-  # Set color and prefix based on log level
-  case $1 in
-    info)    clr=$BLUE  ; pre="> ";;    # Blue arrow for information
-    success) clr=$GREEN ; pre="✓ ";;    # Green checkmark for success
-    warn)    clr=$YELLOW; pre="! ";;    # Yellow exclamation for warnings
-    error)   clr=$RED   ; pre="✗ ";;    # Red X for errors
-    header)  clr=$BLUE  ; pre="== ";;   # Blue double equals for main headers
-    section) clr=$YELLOW; pre="-- ";;   # Yellow double dash for section headers
-  esac
-  shift  # Remove the level parameter, leaving only the message
-  # Print the message with color and prefix
-  printf "%b%s%b\n" "$clr" "$pre$*" "$NC"
-}
-
-# Function: require_cmd
-# Description: Checks if a command exists, exits with error if not found
-# Parameters:
-#   $1 - The command to check for
-# Returns:
-#   0 if command exists, exits with error code 1 if not
-# Usage example:
-#   require_cmd docker
-require_cmd() { command -v "$1" &>/dev/null || { log error "Command '$1' not found"; exit 1; }; }
-
-#------------------------------------------------------------------------------
-# Compose helpers
-#------------------------------------------------------------------------------
-# Function: find_compose_file
-# Description: Searches for Docker Compose files with different naming conventions in a directory
-# Parameters:
-#   $1 - Directory to search in
-# Returns:
-#   Path to the first found Docker Compose file, or nothing if none found
-# Usage example:
-#   compose_file=$(find_compose_file "/path/to/dir")
-find_compose_file() { # (dir)
-  # Check for different Docker Compose file naming conventions
-  local v; for v in docker-compose.yaml docker-compose.yml compose.yaml compose.yml; do
-    # If file exists, output its path and exit the function
-    [[ -f "$1/$v" ]] && { echo "$1/$v"; return; }
-  done
-  # No Docker Compose file found (implicit return)
-}
-
-# Function: docker_compose
-# Description: Wrapper for docker compose command that uses the project's compose file
-# Parameters:
-#   $@ - Arguments to pass to docker compose
-# Usage example:
-#   docker_compose up -d
-docker_compose() { docker compose -f "$COMPOSE_FILE" "$@"; }
-
-# Function: detect_conflict
-# Description: Detects if a port is already in use by another container
-# Parameters:
-#   $1 - Port number to check
-# Returns:
-#   Name of the container using the port, or nothing if port is free
-# Usage example:
-#   container=$(detect_conflict "3000")
-detect_conflict() { docker ps --filter "publish=$1" --format "{{.Names}}"; }
-
-# Function: shutdown_conflict
-# Description: Shuts down a conflicting container, using Docker Compose if possible
-# Parameters:
-#   $1 - Name of the container to shut down
-# Usage example:
-#   shutdown_conflict "grafana-container"
-shutdown_conflict() { # (container)
-  local cnt=$1 dir file
-  # Try to get the Docker Compose project directory from container labels
-  dir=$(docker inspect "$cnt" -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)
-  # If directory found, try to find a Docker Compose file in it
-  file="${dir:+$(find_compose_file "$dir" || true)}"
-
-  # If Docker Compose file found, use docker compose down
-  if [[ -n $file ]]; then
-    log info "Stopping $cnt via docker compose -f $file down"
-    docker compose -f "$file" down
-  # Otherwise, use docker stop for the individual container
-  else
-    log info "Stopping $cnt via docker stop"
-    docker stop "$cnt"
-  fi
-}
-
-# Function: show_port_conflicts
-# Description: Displays information about port conflicts and how to resolve them
-show_port_conflicts() {
-  local profile="$1"
-  local port cnt dir file
-  ports_array=($(get_ports_for_profile "$profile"))
-  
-  # Check ports for conflicts
-  for port in "${ports_array[@]}"; do
-    # If port is in use by another container
-    if cnt=$(detect_conflict "$port"); [[ -n $cnt ]]; then
-      log warn "Port $port is already used by container: $cnt"
-      # Try to get the Docker Compose project directory
-      dir=$(docker inspect "$cnt" -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)
-      # If directory found, try to find a Docker Compose file in it
-      file="${dir:+$(find_compose_file "$dir" || true)}"
-
-      # Show appropriate command to stop the conflicting container
-      if [[ -n $file ]]; then
-        log info "→ Stop it with: docker compose -f $file down"
-      else
-        log info "→ Stop it with: docker stop $cnt"
-      fi
-    fi
-  done
-  # Show quick fix options
-  if [[ "$profile" == "all" ]]; then
-    log info "Quick fix: ./compose fix"
-  else
-    log info "Quick fix: ./compose fix $profile"
-  fi
-}
-
-#------------------------------------------------------------------------------
-# Connection info display
-#------------------------------------------------------------------------------
-# Function: show_mcp_connections
-# Description: Displays connection information for MCP services
-show_mcp_connections() {
-  local profile="$1"
-  local pad="%-20s"
-
-  # Check if MCP Inspector container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q mcp-inspector; then
-    # Display Inspector GUI URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Inspector GUI" "http://localhost:$MCP_INSPECTOR_PORT"
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Inspector Proxy" "WebSocket on :$MCP_INSPECTOR_WS_PORT"
-  else
-    # Display warning if Inspector is not running
-    log warn "MCP Inspector not running"
-  fi
-
-  # Check if SSE server container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q everything-sse; then
-    # Display SSE server URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "SSE Server" "http://localhost:$MCP_SSE_PORT/sse"
-    printf "${GREEN}  ${pad}  ${NC}  ${YELLOW}Inspector URL${NC}: everything-sse:3001\n" ""
-  else
-    # Display warning if SSE server is not running
-    log warn "SSE Server not running"
-  fi
-
-  # Check if Streamable HTTP server container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q everything-streamable; then
-    # Display Streamable server URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Streamable Server" "http://localhost:$MCP_STREAMABLE_PORT/mcp"
-    printf "${GREEN}  ${pad}  ${NC}  ${YELLOW}Inspector URL${NC}: everything-streamable:3001\n" ""
-  else
-    # Display warning if Streamable server is not running
-    log warn "Streamable Server not running"
-  fi
-
-  # Show host connection info
-  echo
-  log info "To connect Inspector to services on your Mac:"
-  log info "→ Use: http://host.docker.internal:PORT"
-  log info "→ Example: http://host.docker.internal:3001"
-}
-
-# Function: show_postgres_connections  
-# Description: Displays connection information for PostgreSQL services
-show_postgres_connections() {
-  local profile="$1"
-  local pad="%-8s"
-
-  # Check if PostgreSQL container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q postgres; then
-    # Display PostgreSQL connection information with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s:%s  user=%s  db=%s\n" "PG" "localhost" "$PG_PORT" "postgres" "postgres"
-    # Display JDBC connection URL
-    printf "  ${pad}: jdbc:postgresql://%s:%s/%s\n" "JDBC" "localhost" "$PG_PORT" "mcp_dev"
-    # Display psql command for command-line access
-    printf "  ${pad}: PGPASSWORD=%s psql -h %s -p %s -U %s -d %s\n" "PSQL" "password" "localhost" "$PG_PORT" "postgres" "postgres"
-  else
-    # Display warning if PostgreSQL is not running
-    log warn "PostgreSQL not running"
-  fi
-
-  # Check if pgAdmin container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q pgadmin; then
-    # Display pgAdmin URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "pgAdmin" "http://localhost:$PGADMIN_PORT"
-  else
-    # Display warning if pgAdmin is not running
-    log warn "pgAdmin not running"
-  fi
-}
-
-# Function: show_observability_connections
-# Description: Displays connection information for observability services
-show_observability_connections() {
-  local profile="$1"
-  local pad="%-15s"
-
-  # Check if Grafana container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q grafana; then
-    # Display Grafana URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Grafana" "http://localhost:$GRAFANA_PORT"
-  else
-    # Display warning if Grafana is not running
-    log warn "Grafana not running"
-  fi
-
-  # Check if Prometheus container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q prometheus; then
-    # Display Prometheus URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Prometheus" "http://localhost:$PROMETHEUS_PORT"
-  else
-    # Display warning if Prometheus is not running
-    log warn "Prometheus not running"
-  fi
-
-  # Check if Loki container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q loki; then
-    # Display Loki URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Loki API" "http://localhost:$LOKI_PORT"
-  else
-    # Display warning if Loki is not running
-    log warn "Loki not running"
-  fi
-
-  # Check if Tempo container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q tempo; then
-    # Display Tempo URLs with green checkmarks
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Tempo API" "http://localhost:$TEMPO_PORT"
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Tempo Zipkin" "http://localhost:$TEMPO_ZIPKIN_PORT"
-  else
-    # Display warning if Tempo is not running
-    log warn "Tempo not running"
-  fi
-
-  # Check if OpenTelemetry Collector container is running
-  if docker_compose "$profile" ps --services --filter status=running | grep -q otel-collector; then
-    # Display OTel Collector URLs with green checkmarks
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "OTel HTTP API" "http://localhost:$OTEL_COLLECTOR_HTTP_PORT"
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "OTel gRPC API" "grpc://localhost:$OTEL_COLLECTOR_GRPC_PORT"
-  else
-    # Display warning if OTel Collector is not running
-    log warn "OpenTelemetry Collector not running"
-  fi
-}
-
-# Function: show_connections
-# Description: Displays connection information based on profile
-show_connections() {
-  local profile="$1"
-  
-  # Display section header
-  log section "Connection Info"
-  
-  case "$profile" in
-    mcp)
-      show_mcp_connections "$profile"
-      ;;
-    postgres)
-      show_postgres_connections "$profile" 
-      ;;
-    observability)
-      show_observability_connections "$profile"
-      ;;
-    all)
-      log info "MCP Services"
-      show_mcp_connections "$profile"
-      echo
-      log info "PostgreSQL Services"  
-      show_postgres_connections "$profile"
-      echo
-      log info "Observability Services"
-      show_observability_connections "$profile"
-      ;;
-  esac
-}
-
-#------------------------------------------------------------------------------
-# Build function
-#------------------------------------------------------------------------------
-# Function: build_image
-# Description: Builds the MCP everything Docker image
-# Usage example:
-#   build_image
-build_image() {
-  log header "Building MCP Everything Docker image"
-  if docker build -t mcp-everything:latest "$SCRIPT_DIR/docker"; then
-    log success "Docker image built successfully"
-  else
-    log error "Failed to build Docker image"
-    exit 1
-  fi
-}
-
-#------------------------------------------------------------------------------
-# Usage
-#------------------------------------------------------------------------------
-# Function: usage
-# Description: Displays usage information for the script
-# Usage example:
-#   usage
-usage() {
-  # Display the main usage header with bold formatting
-  printf "${BOLD}Usage:${NC} ./compose <command> [profile]\n\n"
-  printf "Commands:\n"
-  # List all available commands with color coding matching their function
-  printf "  ${BLUE}build${NC}         Build Docker images\n"
-  printf "  ${GREEN}up${NC}            Start containers\n"
-  printf "  ${BLUE}status${NC}        Show status & connection info\n"
-  printf "  ${YELLOW}down${NC}          Stop containers\n"
-  printf "  ${RED}clean${NC}         Stop containers & remove volumes\n"
-  printf "  ${YELLOW}fix${NC}           Detect & fix port conflicts\n"
-  printf "  ${BLUE}ports${NC}         Show current port configuration\n"
-  printf "  ${BLUE}logs${NC}          Show container logs (optionally specify service)\n\n"
-  printf "Profiles (optional):\n"
-  printf "  ${GREEN}mcp${NC}           MCP services only (Inspector, SSE, Streamable)\n"
-  printf "  ${BLUE}postgres${NC}      PostgreSQL services only (PostgreSQL, pgAdmin)\n"
-  printf "  ${YELLOW}observability${NC} Observability stack only (Grafana, Prometheus, Loki, Tempo)\n"
-  printf "  ${YELLOW}all${NC}           All services (default)\n\n"
-  printf "Examples:\n"
-  printf "  ./compose up                         # Start all services\n"
-  printf "  ./compose up mcp                     # Start only MCP services\n"
-  printf "  ./compose up observability           # Start only observability stack\n"
-  printf "  ./compose status postgres            # Show only PostgreSQL status\n"
-  printf "  ./compose ports observability        # Show only observability ports\n"
-  printf "  ./compose logs grafana               # Show logs from specific service\n"
-}
-
-#------------------------------------------------------------------------------
-# Environment setup
-#------------------------------------------------------------------------------
-# Check if Docker is installed
-require_cmd docker
-
-# Get the absolute path to the directory containing this script
-# This ensures the script works correctly regardless of where it's called from
-readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-
-# Find the Docker Compose file in the current directory (project root)
-# Exit with error if no compose file is found
-COMPOSE_FILE="$(find_compose_file "$SCRIPT_DIR")" || { log error "No compose file in $SCRIPT_DIR"; exit 1; }
-
-# Load port configuration from environment variables or use defaults
-setup_ports() {
-  # Track which variables were originally set as environment variables
-  local originally_set_vars=()
-  for var in MCP_SSE_PORT MCP_STREAMABLE_PORT MCP_INSPECTOR_PORT MCP_INSPECTOR_WS_PORT PG_PORT PGADMIN_PORT GRAFANA_PORT PROMETHEUS_PORT LOKI_PORT TEMPO_PORT TEMPO_ZIPKIN_PORT OTEL_COLLECTOR_GRPC_PORT OTEL_COLLECTOR_HTTP_PORT; do
-    if [[ -n "${!var:-}" ]]; then
-      originally_set_vars+=("$var")
-    fi
-  done
-  
-  # Helper function to load env file with priority support
-  load_env_file() {
-    local file="$1"
-    local force_override="$2"
-    if [[ -f "$file" ]]; then
-      while IFS='=' read -r key value || [[ -n "$key" ]]; do
-        # Skip comments and empty lines
-        [[ $key =~ ^[[:space:]]*# ]] && continue
-        [[ -z $key ]] && continue
-        # Never override environment variables that were originally set
-        if printf '%s\n' "${originally_set_vars[@]}" | grep -q "^$key$"; then
-          continue
-        fi
-        # For .env.local, override existing values; for .env, only set if not already set
-        if [[ "$force_override" == "true" ]] || [[ -z ${!key:-} ]]; then
-          export "$key=$value"
-        fi
-      done < "$file"
-    fi
-  }
-  
-  # Load .env first (team defaults) - only if not already set
-  load_env_file "$SCRIPT_DIR/.env" "false"
-  
-  # Load .env.local second (personal overrides) - force override
-  load_env_file "$SCRIPT_DIR/.env.local" "true"
-  
-  # Set defaults for any variables still not set
-  export MCP_SSE_PORT=${MCP_SSE_PORT:-3001}
-  export MCP_STREAMABLE_PORT=${MCP_STREAMABLE_PORT:-4001}
-  export MCP_INSPECTOR_PORT=${MCP_INSPECTOR_PORT:-6274}
-  export MCP_INSPECTOR_WS_PORT=${MCP_INSPECTOR_WS_PORT:-6277}
-  export PG_PORT=${PG_PORT:-15432}
-  export PGADMIN_PORT=${PGADMIN_PORT:-15433}
-  export GRAFANA_PORT=${GRAFANA_PORT:-3000}
-  export PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
-  export LOKI_PORT=${LOKI_PORT:-3100}
-  export TEMPO_PORT=${TEMPO_PORT:-3200}
-  export TEMPO_ZIPKIN_PORT=${TEMPO_ZIPKIN_PORT:-9411}
-  export OTEL_COLLECTOR_GRPC_PORT=${OTEL_COLLECTOR_GRPC_PORT:-4317}
-  export OTEL_COLLECTOR_HTTP_PORT=${OTEL_COLLECTOR_HTTP_PORT:-4318}
-  
-  # Define ports arrays for each profile
-  MCP_PORTS=(
-    "$MCP_SSE_PORT"         # SSE Server
-    "$MCP_STREAMABLE_PORT"  # Streamable HTTP Server
-    "$MCP_INSPECTOR_PORT"   # MCP Inspector GUI
-    "$MCP_INSPECTOR_WS_PORT" # MCP Inspector WebSocket
-  )
-  
-  POSTGRES_PORTS=(
-    "$PG_PORT"              # PostgreSQL
-    "$PGADMIN_PORT"         # pgAdmin
-  )
-  
-  OBSERVABILITY_PORTS=(
-    "$GRAFANA_PORT"         # Grafana
-    "$PROMETHEUS_PORT"      # Prometheus
-    "$LOKI_PORT"           # Loki
-    "$TEMPO_PORT"          # Tempo
-    "$TEMPO_ZIPKIN_PORT"   # Tempo Zipkin
-    "$OTEL_COLLECTOR_GRPC_PORT"  # OTel Collector gRPC
-    "$OTEL_COLLECTOR_HTTP_PORT"  # OTel Collector HTTP
-  )
-  
-  ALL_PORTS=("${MCP_PORTS[@]}" "${POSTGRES_PORTS[@]}" "${OBSERVABILITY_PORTS[@]}")
-}
-
-# Profile and command parsing
-parse_profile() {
-  local profile="${1:-all}"
-  case "$profile" in
-    mcp|postgres|observability|all) echo "$profile" ;;
-    *) echo "all" ;;  # Default to all for unknown profiles
-  esac
-}
-
-# Docker compose wrapper with profile support
-docker_compose() {
-  local profile="$1"
-  shift
-  
-  case "$profile" in
-    mcp)           docker compose -f "$COMPOSE_FILE" --profile mcp "$@" ;;
-    postgres)      docker compose -f "$COMPOSE_FILE" --profile postgres "$@" ;;
-    observability) docker compose -f "$COMPOSE_FILE" --profile observability "$@" ;;
-    all)           docker compose -f "$COMPOSE_FILE" --profile mcp --profile postgres --profile observability "$@" ;;
-    *)             docker compose -f "$COMPOSE_FILE" --profile mcp --profile postgres --profile observability "$@" ;;
-  esac
-}
-
-# Get ports array based on profile
-get_ports_for_profile() {
-  local profile="$1"
-  case "$profile" in
-    mcp)           echo "${MCP_PORTS[@]}" ;;
-    postgres)      echo "${POSTGRES_PORTS[@]}" ;;
-    observability) echo "${OBSERVABILITY_PORTS[@]}" ;;
-    all)           echo "${ALL_PORTS[@]}" ;;
-    *)             echo "${ALL_PORTS[@]}" ;;
-  esac
-}
-
-#------------------------------------------------------------------------------
-# Main command handler
-#------------------------------------------------------------------------------
-# Get the command from the first argument, or empty string if no argument provided
-cmd=${1-}
-
-# Process the command using a case statement
-case $cmd in
-  # Build command: Build Docker images
-  build)
-    profile=$(parse_profile "${2:-}")
-    setup_ports  # Load port configuration
+log() {
+    local level="$1"
+    shift
+    local color prefix
     
-    if [[ "$profile" == "all" ]]; then
-      log header "Building Docker images"
-    else
-      log header "Building Docker images ($profile profile)"
-    fi
-    
-    if docker_compose "$profile" build; then
-      log success "Docker images built successfully"
-    else
-      log error "Failed to build Docker images"
-      exit 1
-    fi
-    ;;
-
-  # Up command: Start containers
-  up)
-    profile=$(parse_profile "${2:-}")
-    setup_ports  # Load port configuration
-    
-    if [[ "$profile" == "all" ]]; then
-      log header "Starting containers"
-    else
-      log header "Starting containers ($profile profile)"
-    fi
-    
-    # Try to start the containers in detached mode
-    if docker_compose "$profile" up -d; then
-      # If successful, show success message and container status
-      log success "Containers started"
-      docker_compose "$profile" ps
-      show_connections "$profile"
-    else
-      # If failed (likely due to port conflict), show error and port conflict info
-      log error "Failed to start – port conflict detected"
-      show_port_conflicts "$profile"
-      exit 1  # Exit with error code
-    fi
-    ;;
-
-  # Down command: Stop the running containers
-  down)
-    profile=$(parse_profile "${2:-}")
-    
-    if [[ "$profile" == "all" ]]; then
-      log header "Stopping containers"
-    else
-      log header "Stopping containers ($profile profile)"
-    fi
-    
-    docker_compose "$profile" down --remove-orphans  # Stop containers and remove networks and orphans
-    ;;
-
-  # Clean command: Stop containers and remove volumes (data cleanup)
-  clean)
-    profile=$(parse_profile "${2:-}")
-    
-    if [[ "$profile" == "all" ]]; then
-      log header "Cleaning containers & volumes"
-    else
-      log header "Cleaning containers & volumes ($profile profile)"
-    fi
-    
-    docker_compose "$profile" down -v --remove-orphans  # -v flag removes volumes
-    ;;
-
-  # Status command: Show container status and connection information
-  status)
-    profile=$(parse_profile "${2:-}")
-    setup_ports  # Load port configuration
-    
-    if [[ "$profile" == "all" ]]; then
-      log header "Container Status"
-    else
-      log header "Container Status ($profile profile)"
-    fi
-    
-    docker_compose "$profile" ps       # Show container status
-    show_connections "$profile"        # Show connection information
-    ;;
-
-  # Fix command: Automatically resolve port conflicts
-  fix)
-    profile=$(parse_profile "${2:-}")
-    setup_ports  # Load port configuration
-    
-    if [[ "$profile" == "all" ]]; then
-      log header "Resolving Port Conflicts"
-    else
-      log header "Resolving Port Conflicts ($profile profile)"
-    fi
-    
-    # Get ports for the profile
-    ports_array=($(get_ports_for_profile "$profile"))
-    # For each port in the profile
-    for p in "${ports_array[@]}"; do
-      # If port is in use by a container, shut it down
-      if c=$(detect_conflict "$p"); [[ -n $c ]]; then
-        shutdown_conflict "$c"
-      fi
-    done
-    ;;
-
-  # Ports command: Show current port configuration
-  ports)
-    profile=$(parse_profile "${2:-}")
-    setup_ports  # Load port configuration
-    
-    if [[ "$profile" == "all" ]]; then
-      log header "Port Configuration"
-    else
-      log header "Port Configuration ($profile profile)"
-    fi
-    
-    case "$profile" in
-      mcp)
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "SSE Server" "$MCP_SSE_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Streamable HTTP Server" "$MCP_STREAMABLE_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector GUI" "$MCP_INSPECTOR_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector WebSocket" "$MCP_INSPECTOR_WS_PORT"
-        ;;
-      postgres)
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "PostgreSQL" "$PG_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "pgAdmin" "$PGADMIN_PORT"
-        ;;
-      observability)
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Grafana" "$GRAFANA_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Prometheus" "$PROMETHEUS_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Loki API" "$LOKI_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Tempo API" "$TEMPO_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Tempo Zipkin" "$TEMPO_ZIPKIN_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "OTel Collector gRPC" "$OTEL_COLLECTOR_GRPC_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "OTel Collector HTTP" "$OTEL_COLLECTOR_HTTP_PORT"
-        ;;
-      all)
-        log info "MCP Services"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "SSE Server" "$MCP_SSE_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Streamable HTTP Server" "$MCP_STREAMABLE_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector GUI" "$MCP_INSPECTOR_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector WebSocket" "$MCP_INSPECTOR_WS_PORT"
-        echo
-        log info "PostgreSQL Services"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "PostgreSQL" "$PG_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "pgAdmin" "$PGADMIN_PORT"
-        echo
-        log info "Observability Services"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Grafana" "$GRAFANA_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Prometheus" "$PROMETHEUS_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Loki API" "$LOKI_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Tempo API" "$TEMPO_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Tempo Zipkin" "$TEMPO_ZIPKIN_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "OTel Collector gRPC" "$OTEL_COLLECTOR_GRPC_PORT"
-        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "OTel Collector HTTP" "$OTEL_COLLECTOR_HTTP_PORT"
-        ;;
+    case "$level" in
+        error)   color="$RED"    ; prefix="✗ " ;;
+        success) color="$GREEN"  ; prefix="✓ " ;;
+        warn)    color="$YELLOW" ; prefix="! " ;;
+        info)    color="$BLUE"   ; prefix="→ " ;;
+        header)  color="$BLUE"   ; prefix="== " ;;
+        *)       color="$NC"     ; prefix="  " ;;
     esac
     
-    echo
-    log info "To change ports, you have several options:"
-    log info "→ Create .env.local: cp .env.local.example .env.local (recommended)"
-    log info "→ Set environment variables: export MCP_SSE_PORT=5001"
-    log info "→ Inline override: MCP_SSE_PORT=5001 ./compose up"
-    echo
-    log info "Priority: Environment variables > .env.local > .env > defaults"
-    ;;
+    printf "%b%s%s%b\n" "$color" "$prefix" "$*" "$NC"
+}
 
-  # Logs command: Show container logs
-  logs)
-    shift # Remove 'logs' from arguments
-    
-    # Check if second argument is a profile
-    profile="all"
-    args=("$@")
-    
-    if [[ $# -gt 0 ]]; then
-      case "$1" in
-        mcp|postgres|observability|all)
-          profile="$1"
-          shift
-          args=("$@")
-          ;;
-      esac
+#------------------------------------------------------------------------------
+# Dependency Checks
+#------------------------------------------------------------------------------
+require_cmd() {
+    if ! command -v "$1" &>/dev/null; then
+        log error "Required command '$1' not found"
+        log info "Please install $1 and try again"
+        exit 1
     fi
-    
-    if [[ "$profile" == "all" ]]; then
-      log header "Container Logs"
-    else
-      log header "Container Logs ($profile profile)"
-    fi
-    
-    if [[ ${#args[@]} -eq 0 ]]; then
-      # No specific service specified, show all logs for profile
-      docker_compose "$profile" logs -f
-    else
-      # Show logs for specific service or with specific options
-      docker_compose "$profile" logs "${args[@]}"
-    fi
-    ;;
+}
 
-  # Unknown command or no command: Show usage information
-  *)
-    usage  # Display usage information
-    exit 1  # Exit with error code
-    ;;
-esac
+check_dependencies() {
+    require_cmd docker
+    require_cmd yq
+}
+
+#------------------------------------------------------------------------------
+# Convention Validation
+#------------------------------------------------------------------------------
+check_compose_file() {
+    if [[ ! -f compose.yaml ]]; then
+        log error "compose.yaml not found in current directory"
+        log info "This script requires a compose.yaml file (exact filename)"
+        exit 1
+    fi
+}
+
+check_service_profiles() {
+    local services_without_profiles
+    services_without_profiles=$(yq '.services | to_entries | map(select(.value.profiles == null)) | .[].key' compose.yaml 2>/dev/null)
+    
+    if [[ -n "$services_without_profiles" ]]; then
+        log error "Services missing explicit profiles:"
+        echo "$services_without_profiles" | while read -r service; do
+            log error "  - $service"
+        done
+        log info "All services must have explicit 'profiles: [...]' set"
+        exit 1
+    fi
+}
+
+validate_conventions() {
+    check_compose_file
+    check_service_profiles
+}
+
+#------------------------------------------------------------------------------
+# Environment Loading
+#------------------------------------------------------------------------------
+load_env() {
+    set -a  # Auto-export variables
+    
+    # Load .env if it exists (team defaults)
+    [[ -f .env ]] && source .env
+    
+    # Load .env.local if it exists (personal overrides)
+    [[ -f .env.local ]] && source .env.local
+    
+    set +a  # Stop auto-export
+}
+
+#------------------------------------------------------------------------------
+# Profile Management
+#------------------------------------------------------------------------------
+get_profiles() {
+    docker compose config --profiles 2>/dev/null | sort
+}
+
+parse_profiles() {
+    local profiles=("$@")
+    
+    # If no profiles specified, use default
+    if [[ ${#profiles[@]} -eq 0 ]]; then
+        echo "default"
+        return
+    fi
+    
+    # Return specified profiles
+    printf "%s " "${profiles[@]}"
+}
+
+build_profile_args() {
+    local profiles_string="$1"
+    local args=()
+    
+    # Convert space-separated string to array and build --profile args
+    for profile in $profiles_string; do
+        args+=(--profile "$profile")
+    done
+    
+    printf "%s " "${args[@]}"
+}
+
+#------------------------------------------------------------------------------
+# Docker Compose Wrapper
+#------------------------------------------------------------------------------
+docker_compose_with_profiles() {
+    local cmd="$1"
+    local profiles_string="$2"
+    shift 2
+    local remaining_args=("$@")
+    
+    local profile_args
+    profile_args=$(build_profile_args "$profiles_string")
+    
+    # Execute docker compose with profile arguments
+    docker compose $profile_args "$cmd" "${remaining_args[@]}"
+}
+
+#------------------------------------------------------------------------------
+# Visual Output
+#------------------------------------------------------------------------------
+show_profile_divider() {
+    local profiles="$1"
+    local operation="${2:-Operation}"
+    
+    if [[ "$profiles" == "default" ]]; then
+        log header "$operation (default profile)"
+    else
+        log header "$operation ($profiles profile)"
+    fi
+}
+
+#------------------------------------------------------------------------------
+# Usage Information
+#------------------------------------------------------------------------------
+show_usage() {
+    cat << 'EOF'
+Usage: compose <command> [profiles...] [options]
+
+Commands:
+  up [profiles...]      Start services (detached mode)
+  down [profiles...]    Stop services
+  ps [profiles...]      Show service status
+  logs [profiles...]    Show service logs (-f for follow)
+  build [profiles...]   Build service images
+  clean [profiles...]   Stop services and remove volumes
+  status [profiles...]  Show connection information
+  profiles              List available profiles
+
+Profiles:
+  default              Core services for daily development
+  all                  All services including observability
+  db                   Database services only
+  mcp                  MCP services only  
+  observability        Observability services only
+
+Examples:
+  compose up                    # Start default services
+  compose up all                # Start all services
+  compose up db observability   # Start specific profiles
+  compose status                # Show default service status
+  compose clean all             # Remove all services and volumes
+  compose logs mcp -f           # Follow MCP service logs
+
+Environment:
+  Override defaults via .env, .env.local, or shell variables
+  Example: MCP_SSE_PORT=5001 compose up mcp
+EOF
+}
+
+#------------------------------------------------------------------------------
+# Main Command Handler
+#------------------------------------------------------------------------------
+main() {
+    # Check dependencies and validate conventions
+    check_dependencies
+    validate_conventions
+    
+    # Load environment variables
+    load_env
+    
+    # Parse command and arguments
+    local cmd="${1:-}"
+    if [[ -z "$cmd" ]]; then
+        show_usage
+        exit 1
+    fi
+    shift
+    
+    case "$cmd" in
+        up|down|ps|logs|build)
+            local profiles
+            profiles=$(parse_profiles "$@")
+            show_profile_divider "$profiles" "$(tr '[:lower:]' '[:upper:]' <<< "${cmd:0:1}")${cmd:1}"
+            
+            if [[ "$cmd" == "up" ]]; then
+                # Try to start services, handle port conflicts
+                if ! docker_compose_with_profiles up "$profiles" -d; then
+                    log error "Failed to start services - likely port conflicts"
+                    log info "Check running containers with: docker ps"
+                    log info "Stop conflicting services or change ports in .env"
+                    exit 1
+                fi
+                log success "Services started successfully"
+            else
+                docker_compose_with_profiles "$cmd" "$profiles"
+            fi
+            ;;
+            
+        clean)
+            local profiles
+            profiles=$(parse_profiles "$@")
+            show_profile_divider "$profiles" "Cleaning"
+            docker_compose_with_profiles down "$profiles" -v --remove-orphans
+            log success "Cleanup completed"
+            ;;
+            
+        status)
+            local profiles
+            profiles=$(parse_profiles "$@")
+            show_profile_divider "$profiles" "Status"
+            
+            # Show container status
+            docker_compose_with_profiles ps "$profiles"
+            
+            # Show connection information from labels
+            echo
+            log header "Connection Information"
+            
+            local containers
+            containers=$(docker_compose_with_profiles ps "$profiles" -q)
+            
+            if [[ -n "$containers" ]]; then
+                for container in $containers; do
+                    local container_name
+                    container_name=$(docker inspect "$container" --format '{{.Name}}' | sed 's/^.//')
+                    
+                    local status_labels
+                    status_labels=$(docker inspect "$container" --format '{{range $key, $value := .Config.Labels}}{{if hasPrefix $key "status."}}{{$key}}={{$value}}{{"\n"}}{{end}}{{end}}')
+                    
+                    if [[ -n "$status_labels" ]]; then
+                        echo
+                        log info "$container_name:"
+                        echo "$status_labels" | while IFS='=' read -r key value; do
+                            printf "  %s: %s\n" "$key" "$value"
+                        done
+                    fi
+                done
+            else
+                log warn "No containers running for specified profile(s)"
+            fi
+            ;;
+            
+        profiles)
+            log header "Available Profiles"
+            local available_profiles
+            available_profiles=$(get_profiles)
+            
+            if [[ -n "$available_profiles" ]]; then
+                echo "$available_profiles" | while read -r profile; do
+                    case "$profile" in
+                        default)      printf "  %-15s %s\n" "$profile" "Core services for daily development" ;;
+                        all)          printf "  %-15s %s\n" "$profile" "All services including observability" ;;
+                        db)           printf "  %-15s %s\n" "$profile" "Database services only" ;;
+                        mcp)          printf "  %-15s %s\n" "$profile" "MCP services only" ;;
+                        observability) printf "  %-15s %s\n" "$profile" "Observability services only" ;;
+                        *)            printf "  %-15s %s\n" "$profile" "Custom profile" ;;
+                    esac
+                done
+            else
+                log warn "No profiles found in compose.yaml"
+            fi
+            ;;
+            
+        help|--help|-h)
+            show_usage
+            ;;
+            
+        *)
+            log error "Unknown command: $cmd"
+            echo
+            show_usage
+            exit 1
+            ;;
+    esac
+}
+
+# Execute main function with all arguments
+main "$@"
