@@ -273,7 +273,7 @@ main() {
                     container_name=$(docker inspect "$container" --format '{{.Name}}' | sed 's/^.//')
                     
                     local status_labels
-                    status_labels=$(docker inspect "$container" --format '{{range $key, $value := .Config.Labels}}{{if hasPrefix $key "status."}}{{$key}}={{$value}}{{"\n"}}{{end}}{{end}}')
+                    status_labels=$(docker inspect "$container" --format '{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}' | grep '^status\.')
                     
                     if [[ -n "$status_labels" ]]; then
                         echo
