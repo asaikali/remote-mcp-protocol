@@ -128,7 +128,8 @@ parse_profiles() {
     fi
     
     # Return specified profiles
-    printf "%s " "${profiles[@]}"
+    local IFS=' '
+    echo "${profiles[*]}"
 }
 
 #------------------------------------------------------------------------------
@@ -159,6 +160,8 @@ show_profile_divider() {
     
     if [[ "$profiles" == "default" ]]; then
         log header "$operation (default profile)"
+    elif [[ "$profiles" =~ \  ]]; then
+        log header "$operation ($profiles profiles)"
     else
         log header "$operation ($profiles profile)"
     fi
