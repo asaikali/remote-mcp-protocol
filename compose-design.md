@@ -57,6 +57,18 @@ This document defines the design constraints for the `compose` script and associ
   - **Single port**: `<SERVICE_NAME>_PORT` (e.g., `POSTGRES_PORT=15432`)  
   - **Multiple ports**: `<SERVICE_NAME>_PORT_<PORT_NAME>` (e.g., `EVERYTHING_MCP_PORT_SSE=3001`)
   - **Credentials**: `<SERVICE_NAME>_CRED_<TYPE>` (e.g., `<SERVICE_NAME>_CRED_USERNAME`, `<SERVICE_NAME>_CRED_PASSWORD`, `<SERVICE_NAME>_CRED_API_KEY`)
+- **Usage in compose.yaml**: These environment variables are used via Docker Compose interpolation syntax:
+  ```yaml
+  services:
+    postgres:
+      image: ${POSTGRES_IMAGE}
+      ports:
+        - "${POSTGRES_PORT}:5432"
+      environment:
+        POSTGRES_USER: ${POSTGRES_CRED_USERNAME}
+        POSTGRES_PASSWORD: ${POSTGRES_CRED_PASSWORD}
+  ```
+- **No Script Enforcement**: The script does not validate that compose.yaml uses these environment variables correctly - convention maintainers (Persona 2) enforce this manually to keep the script simple
 
 ## Constraint 4 - Profile System
 
@@ -86,11 +98,39 @@ This document defines the design constraints for the `compose` script and associ
 
 - The compose script functionality is completely generic - no service-specific functions
 - Service connection info provided through labeling convention in YAML file
+- **Labels are set on services in compose.yaml**: Docker Compose applies service labels to all container instances of that service
 - Labels use environment variable interpolation from `.env`
 - Label naming convention: `status.*` prefix for anything displayed by status command
   - `status.url.<url-type>` for different URL types (jdbc, ui, grpc, http, etc.)
   - `status.cred.<credential_type>` for credentials (username, password, api_key, etc.)
-- The compose script uses `docker compose` to pull out labels for formatted output
+- **Label extraction**: The compose script extracts labels from running containers using `docker inspect` to reflect current running state
+- **Complete service example**:
+  ```yaml
+  services:
+    postgres:
+      image: ${POSTGRES_IMAGE}
+      profiles: ["all", "default"]
+      ports:
+        - "${POSTGRES_PORT}:5432"
+      environment:
+        POSTGRES_USER: ${POSTGRES_CRED_USERNAME}
+        POSTGRES_PASSWORD: ${POSTGRES_CRED_PASSWORD}
+      labels:
+        - "status.url.jdbc=jdbc:postgresql://localhost:${POSTGRES_PORT}/mydb"
+        - "status.url.ui=http://localhost:${PGADMIN_PORT}"
+        - "status.cred.username=${POSTGRES_CRED_USERNAME}"
+        - "status.cred.password=${POSTGRES_CRED_PASSWORD}"
+    
+    pgadmin:
+      image: dpage/pgadmin4:latest
+      profiles: ["all", "default"]
+      ports:
+        - "${PGADMIN_PORT}:80"
+      labels:
+        - "status.url.ui=http://localhost:${PGADMIN_PORT}"
+        - "status.cred.username=admin@example.com"
+        - "status.cred.password=admin"
+  ```
 - Makes the script service-agnostic while providing useful connection information
 
 ## Constraint 6 - Docker Compose Wrapper Commands
@@ -105,8 +145,12 @@ This document defines the design constraints for the `compose` script and associ
 
 ## Constraint 7 - Custom Commands
 
-- `clean` command has no docker compose equivalent - it cleans all volumes and networks associated with the compose file
-- `clean` follows same profile behavior: if you run `clean` it applies to the default profile, otherwise it applies to whatever profiles you pass in
+- `clean` command has no docker compose equivalent - it stops containers and removes volumes and networks
+- `clean` follows same profile behavior as other commands:
+  - `compose clean` applies to default profile only
+  - `compose clean all` applies to all profiles
+  - `compose clean postgres` applies to postgres profile only
+- **Clean command scope**: Removes volumes and networks defined in compose.yaml for the specified profile(s) - Docker Compose automatically manages which resources belong to the project
 - `status` command prints out all key connection information developers need to connect to services from their apps or access them via UI (uses the `status.*` label system)
 - `profiles` command lists all available profiles (convenience command, same category as status)
 - The reserved "all" profile works with all commands: `compose status all`, `compose clean all`, etc.
@@ -130,10 +174,13 @@ This document defines the design constraints for the `compose` script and associ
 While the script only validates convention violations and lets Docker Compose handle all other errors, it provides helpful troubleshooting information for common development errors that are difficult to diagnose from Docker Compose output alone.
 
 **Common Errors We Help With:**
-- **Port Conflicts**: When `docker compose up` fails due to port already in use
-  - Detect which container is using the conflicting port
+- **Port Conflicts**: When `docker compose up` fails, detect and report port conflicts
+  - **Simple Detection**: Script detects failure and checks which containers are using ports
+  - **No Port Tracking**: Script doesn't need to know which ports a profile should use
+  - **Human Resolution**: Developers handle the actual conflict resolution
   - Show the Docker Compose project directory of the conflicting container
   - Provide exact command to stop the conflicting service
+  - **No Dynamic Port Handling**: Script doesn't worry about dynamic ports or port ranges
   - Example output:
     ```
     ✗ Port 5432 is used by container: other_project_postgres
@@ -148,12 +195,14 @@ While the script only validates convention violations and lets Docker Compose ha
 - Service dependency failures
 - Invalid YAML syntax
 - Missing environment variables
+- Dynamic port conflicts or port ranges
 
 **Implementation Approach:**
-- Check for common error patterns in docker compose output
+- Detect `docker compose up` failure
+- Check running containers for port usage conflicts
 - Extract helpful diagnostic information (container names, project directories)
 - Display simple, actionable troubleshooting steps
-- Keep logic minimal - just pattern matching and information extraction
+- Keep logic minimal - just failure detection and information extraction
 
 ## Summary
 
