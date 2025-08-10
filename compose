@@ -168,6 +168,44 @@ show_profile_divider() {
 }
 
 #------------------------------------------------------------------------------
+# Service Status Processing
+#------------------------------------------------------------------------------
+process_service_status() {
+    local service="$1"
+    local service_labels="$2"
+    
+    # Extract title
+    local title
+    title=$(echo "$service_labels" | grep '^status\.title=' | cut -d'=' -f2- || true)
+    
+    if [[ -n "$title" ]]; then
+        log success "$title"
+        
+        # Show URLs
+        local url_lines
+        url_lines=$(echo "$service_labels" | grep '^status\.url\.' || true)
+        if [[ -n "$url_lines" ]]; then
+            while IFS='=' read -r key value; do
+                local url_type="${key#status.url.}"
+                printf "    → %s: %s\n" "$url_type" "$value"
+            done <<< "$url_lines"
+        fi
+        
+        # Show credentials
+        local cred_lines
+        cred_lines=$(echo "$service_labels" | grep '^status\.cred\.' || true)
+        if [[ -n "$cred_lines" ]]; then
+            while IFS='=' read -r key value; do
+                local cred_type="${key#status.cred.}"
+                printf "    → %s: %s\n" "$cred_type" "$value"
+            done <<< "$cred_lines"
+        fi
+        
+        echo
+    fi
+}
+
+#------------------------------------------------------------------------------
 # Usage Information
 #------------------------------------------------------------------------------
 show_usage() {
@@ -257,34 +295,45 @@ main() {
             profiles=$(parse_profiles "$@")
             show_profile_divider "$profiles" "Status"
             
-            # Show container status
-            docker_compose_with_profiles "ps" "$profiles"
+            # Get all status labels using jq
+            local status_data
+            status_data=$(docker_compose_with_profiles "config" "$profiles" --format json | jq -r '.services | to_entries[]
+                         | select(.value.labels)
+                         | .key as $svc
+                         | .value.labels
+                         | to_entries[]
+                         | select(.key|startswith("status."))
+                         | "\($svc)\t\(.key)=\(.value)"' 2>/dev/null || true)
             
-            # Show connection information from labels
-            echo
-            log header "Connection Information"
-            
-            local containers
-            containers=$(docker_compose_with_profiles "ps" "$profiles" -q)
-            
-            if [[ -n "$containers" ]]; then
-                for container in $containers; do
-                    local container_name
-                    container_name=$(docker inspect "$container" --format '{{.Name}}' | sed 's/^.//')
-                    
-                    local status_labels
-                    status_labels=$(docker inspect "$container" --format '{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}' | grep '^status\.')
-                    
-                    if [[ -n "$status_labels" ]]; then
-                        echo
-                        log info "$container_name:"
-                        echo "$status_labels" | while IFS='=' read -r key value; do
-                            printf "  %s: %s\n" "$key" "$value"
-                        done
+            if [[ -n "$status_data" ]]; then
+                echo
+                
+                # Group by service and process
+                local current_service=""
+                local service_labels=""
+                
+                while IFS=$'\t' read -r service label; do
+                    if [[ "$service" != "$current_service" ]]; then
+                        # Process previous service if it exists
+                        if [[ -n "$current_service" && -n "$service_labels" ]]; then
+                            process_service_status "$current_service" "$service_labels"
+                        fi
+                        
+                        # Start new service
+                        current_service="$service"
+                        service_labels="$label"
+                    else
+                        # Add to current service labels
+                        service_labels="$service_labels"$'\n'"$label"
                     fi
-                done
+                done <<< "$status_data"
+                
+                # Process final service
+                if [[ -n "$current_service" && -n "$service_labels" ]]; then
+                    process_service_status "$current_service" "$service_labels"
+                fi
             else
-                log warn "No containers running for specified profile(s)"
+                log warn "No services found for specified profile(s)"
             fi
             ;;
             

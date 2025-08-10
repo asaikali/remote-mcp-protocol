@@ -155,6 +155,7 @@ Services should follow this field order for consistency and readability:
 - **Labels are set on services in compose.yaml**: Docker Compose applies service labels to all container instances of that service
 - Labels use environment variable interpolation from `.env`
 - Label naming convention: `status.*` prefix for anything displayed by status command
+  - `status.title` - Human-readable service name displayed by status command (REQUIRED)
   - `status.url.<url-type>` for different URL types (jdbc, ui, grpc, http, etc.)
   - `status.cred.<credential_type>` for credentials (username, password, api_key, etc.)
 - **Label extraction**: The compose script extracts labels from running containers using `docker inspect` to reflect current running state
@@ -170,6 +171,7 @@ Services should follow this field order for consistency and readability:
         POSTGRES_USER: ${POSTGRES_CRED_USERNAME}
         POSTGRES_PASSWORD: ${POSTGRES_CRED_PASSWORD}
       labels:
+        - "status.title=PostgreSQL Database"
         - "status.url.jdbc=jdbc:postgresql://localhost:${POSTGRES_PORT}/mydb"
         - "status.url.ui=http://localhost:${PGADMIN_PORT}"
         - "status.cred.username=${POSTGRES_CRED_USERNAME}"
@@ -181,6 +183,7 @@ Services should follow this field order for consistency and readability:
       ports:
         - "${PGADMIN_PORT}:80"
       labels:
+        - "status.title=pgAdmin Web Interface"
         - "status.url.ui=http://localhost:${PGADMIN_PORT}"
         - "status.cred.username=admin@example.com"
         - "status.cred.password=admin"
