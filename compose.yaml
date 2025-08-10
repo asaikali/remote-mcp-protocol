@@ -2,7 +2,17 @@
 # Docker Compose File Conventions
 # =============================================================================
 #
-# This file follows specific conventions for consistency and maintainability:
+# This file follows specific conventions for consistency and maintainability.
+# These conventions are designed to work seamlessly with the `compose` wrapper
+# script, which provides simplified commands and enhanced functionality.
+#
+# WHY FOLLOW THESE CONVENTIONS:
+#   - The `compose` script validates that services have explicit profiles
+#   - Status labels enable `compose status` to show connection information
+#   - Environment variable patterns allow easy override via .env files
+#   - Profile system enables `compose up`, `compose up all`, `compose up db` etc.
+#   - Consistent field ordering makes the file easier to scan and maintain
+#   - Following conventions ensures the wrapper script works correctly
 #
 # SERVICE FIELD ORDER (follow this sequence for all services):
 #   1. profiles      - Service grouping (MUST be explicit for every service)
