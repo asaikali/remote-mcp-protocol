@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034
+#==============================================================================
+# MCP Stack Simple Container Manager
+#==============================================================================
+#
+# This script provides a minimal interface to manage Docker Compose stacks.
+# It supports only essential commands:
+#
+# - up: Start containers
+# - down: Stop containers  
+# - clean: Stop containers and remove volumes
+# - ps: Show container status
+#
+#==============================================================================
+
+# Enable strict error handling
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+#------------------------------------------------------------------------------
+# Constants
+#------------------------------------------------------------------------------
+readonly GREEN=$'\e[0;32m'
+readonly RED=$'\e[0;31m'
+readonly YELLOW=$'\e[0;33m'
+readonly BLUE=$'\e[0;34m'
+readonly BOLD=$'\e[1m'
+readonly NC=$'\e[0m'
+
+#------------------------------------------------------------------------------
+# Logging helpers
+#------------------------------------------------------------------------------
+log() { # (level, msg)
+  local clr pre
+  case $1 in
+    info)    clr=$BLUE  ; pre="> ";;
+    success) clr=$GREEN ; pre="✓ ";;
+    warn)    clr=$YELLOW; pre="! ";;
+    error)   clr=$RED   ; pre="✗ ";;
+    header)  clr=$BLUE  ; pre="== ";;
+  esac
+  shift
+  printf "%b%s%b\n" "$clr" "$pre$*" "$NC"
+}
+
+require_cmd() { command -v "$1" &>/dev/null || { log error "Command '$1' not found"; exit 1; }; }
+
+#------------------------------------------------------------------------------
+# Compose helpers
+#------------------------------------------------------------------------------
+find_compose_file() { # (dir)
+  local v; for v in docker-compose.yaml docker-compose.yml compose.yaml compose.yml; do
+    [[ -f "$1/$v" ]] && { echo "$1/$v"; return; }
+  done
+}
+
+get_available_profiles() {
+  docker compose -f "$COMPOSE_FILE" config --profiles 2>/dev/null | sort
+}
+
+parse_profile() {
+  local profile="${1:-all}"
+  if [[ "$profile" == "all" ]]; then
+    echo "all"
+    return
+  fi
+  
+  # Check if profile exists in compose file
+  if get_available_profiles | grep -q "^$profile$"; then
+    echo "$profile"
+  else
+    echo "all"
+  fi
+}
+
+docker_compose() {
+  local profile="$1"
+  shift
+  
+  if [[ "$profile" == "all" ]]; then
+    # Use all available profiles
+    local all_profiles=($(get_available_profiles))
+    local profile_args=()
+    for p in "${all_profiles[@]}"; do
+      profile_args+=(--profile "$p")
+    done
+    docker compose -f "$COMPOSE_FILE" "${profile_args[@]}" "$@"
+  else
+    # Use specific profile
+    docker compose -f "$COMPOSE_FILE" --profile "$profile" "$@"
+  fi
+}
+
+#------------------------------------------------------------------------------
+# Usage
+#------------------------------------------------------------------------------
+usage() {
+  printf "${BOLD}Usage:${NC} ./simple <command> [profile]\n\n"
+  printf "Commands:\n"
+  printf "  ${GREEN}up${NC}            Start containers\n"
+  printf "  ${YELLOW}down${NC}          Stop containers\n"
+  printf "  ${RED}clean${NC}         Stop containers & remove volumes\n"
+  printf "  ${BLUE}ps${NC}            Show container status\n"
+  printf "  ${BLUE}profiles${NC}      List available profiles\n\n"
+  printf "Profiles (optional):\n"
+  printf "  ${YELLOW}all${NC}           All services (default)\n"
+  printf "  ${BLUE}<profile>${NC}      Specific profile (run './simple profiles' to see available)\n\n"
+  printf "Examples:\n"
+  printf "  ./simple profiles              # List available profiles\n"
+  printf "  ./simple up                    # Start all services\n"
+  printf "  ./simple up mcp                # Start only MCP services\n"
+  printf "  ./simple down postgres         # Stop PostgreSQL services\n"
+  printf "  ./simple ps observability      # Show observability status\n"
+}
+
+#------------------------------------------------------------------------------
+# Environment setup
+#------------------------------------------------------------------------------
+require_cmd docker
+
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_FILE="$(find_compose_file "$SCRIPT_DIR")" || { log error "No compose file in $SCRIPT_DIR"; exit 1; }
+
+#------------------------------------------------------------------------------
+# Main command handler
+#------------------------------------------------------------------------------
+cmd=${1-}
+
+case $cmd in
+  # Up command: Start containers
+  up)
+    profile=$(parse_profile "${2:-}")
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Starting containers"
+    else
+      log header "Starting containers ($profile profile)"
+    fi
+    
+    if docker_compose "$profile" up -d; then
+      log success "Containers started"
+      docker_compose "$profile" ps
+    else
+      log error "Failed to start containers"
+      exit 1
+    fi
+    ;;
+
+  # Down command: Stop containers
+  down)
+    profile=$(parse_profile "${2:-}")
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Stopping containers"
+    else
+      log header "Stopping containers ($profile profile)"
+    fi
+    
+    docker_compose "$profile" down --remove-orphans
+    ;;
+
+  # Clean command: Stop containers and remove volumes
+  clean)
+    profile=$(parse_profile "${2:-}")
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Cleaning containers & volumes"
+    else
+      log header "Cleaning containers & volumes ($profile profile)"
+    fi
+    
+    docker_compose "$profile" down -v --remove-orphans
+    ;;
+
+  # PS command: Show container status
+  ps)
+    profile=$(parse_profile "${2:-}")
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Container Status"
+    else
+      log header "Container Status ($profile profile)"
+    fi
+    
+    docker_compose "$profile" ps
+    ;;
+
+  # Profiles command: List available profiles
+  profiles)
+    log header "Available Profiles"
+    
+    available_profiles=($(get_available_profiles))
+    if [[ ${#available_profiles[@]} -eq 0 ]]; then
+      log warn "No profiles found in compose file"
+    else
+      for profile in "${available_profiles[@]}"; do
+        printf "${GREEN}  %s${NC}\n" "$profile"
+      done
+      echo
+      log info "Use 'all' to run all profiles at once"
+    fi
+    ;;
+
+  # Unknown command or no command: Show usage
+  *)
+    usage
+    exit 1
+    ;;
+esac
