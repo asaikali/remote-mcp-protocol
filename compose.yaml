@@ -55,9 +55,11 @@
 #   - Add :ro flag for read-only mounts
 #
 # STATUS LABELS:
+#   - status.title - Human-readable service name displayed by `compose status` (REQUIRED)
 #   - status.url.<type> for connection URLs (ui, api, jdbc, etc.)
 #   - status.cred.<type> for credential information (username, password, etc.)
 #   - Include environment variable defaults in labels for proper resolution
+#   - Example: compose status → shows ✓ PostgreSQL Database (from status.title)
 #
 # QUICK REFERENCE - Docker Compose Commands (copy/paste ready):
 #   Start all services:    docker compose --profile all up --detach
@@ -84,6 +86,7 @@ services:
       - "${MCP_SSE_PORT:-3001}:3001"  # SSE server, configurable via MCP_SSE_PORT
     restart: unless-stopped
     labels:
+      - "status.title=Everything SSE Server"
       - "status.url.sse=http://localhost:${MCP_SSE_PORT:-3001}/sse"
       - "status.url.inspector=everything-sse:3001"
 
@@ -98,6 +101,7 @@ services:
       - "${MCP_STREAMABLE_PORT:-4001}:3001"  # Streamable HTTP server, configurable via MCP_STREAMABLE_PORT
     restart: unless-stopped
     labels:
+      - "status.title=Everything Streamable Server"
       - "status.url.streamable=http://localhost:${MCP_STREAMABLE_PORT:-4001}/mcp"
       - "status.url.inspector=everything-streamable:3001"
 
@@ -113,6 +117,7 @@ services:
       - "${MCP_INSPECTOR_WS_PORT:-6277}:6277"  # Inspector WebSocket, configurable via MCP_INSPECTOR_WS_PORT
     restart: unless-stopped
     labels:
+      - "status.title=MCP Inspector"
       - "status.url.ui=http://localhost:${MCP_INSPECTOR_PORT:-6274}"
       - "status.url.websocket=ws://localhost:${MCP_INSPECTOR_WS_PORT:-6277}"
 
@@ -133,6 +138,7 @@ services:
       - ./docker/db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: unless-stopped
     labels:
+      - "status.title=PostgreSQL Database"
       - "status.url.jdbc=jdbc:postgresql://localhost:${PG_PORT:-15432}/mcp_dev"
       - "status.url.psql=postgresql://postgres:password@localhost:${PG_PORT:-15432}/postgres"
       - "status.cred.username=postgres"
@@ -159,6 +165,7 @@ services:
       - ./docker/db/pgadmin/pgadmin_servers.json:/pgadmin4/servers.json:ro
     restart: unless-stopped
     labels:
+      - "status.title=pgAdmin Web Interface"
       - "status.url.ui=http://localhost:${PGADMIN_PORT:-15433}"
       - "status.cred.username=admin@example.com"
       - "status.cred.password=admin"
@@ -177,6 +184,7 @@ services:
       - loki:/loki
     restart: unless-stopped
     labels:
+      - "status.title=Loki Logs"
       - "status.url.http=http://localhost:${LOKI_PORT:-3100}/metrics"
       - "status.url.api=http://localhost:${LOKI_PORT:-3100}"
 
@@ -192,6 +200,7 @@ services:
       - ./docker/observability/config/tempo.yaml:/etc/tempo.yaml:ro
     restart: unless-stopped
     labels:
+      - "status.title=Tempo Tracing"
       - "status.url.otlp=http://localhost:${TEMPO_PORT:-3200}"
       - "status.url.zipkin=http://localhost:${TEMPO_ZIPKIN_PORT:-9411}"
 
@@ -211,6 +220,7 @@ services:
       - ./docker/observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
     restart: unless-stopped
     labels:
+      - "status.title=OpenTelemetry Collector"
       - "status.url.grpc=grpc://localhost:${OTEL_COLLECTOR_GRPC_PORT:-4317}"
       - "status.url.http=http://localhost:${OTEL_COLLECTOR_HTTP_PORT:-4318}"
 
@@ -230,6 +240,7 @@ services:
       - ./docker/observability/config/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
     restart: unless-stopped
     labels:
+      - "status.title=Prometheus Metrics"
       - "status.url.ui=http://localhost:${PROMETHEUS_PORT:-9090}"
       - "status.url.api=http://localhost:${PROMETHEUS_PORT:-9090}/api/v1"
 
@@ -251,6 +262,7 @@ services:
       - ./docker/observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
     restart: unless-stopped
     labels:
+      - "status.title=Grafana Dashboard"
       - "status.url.ui=http://localhost:${GRAFANA_PORT:-3000}"
       - "status.cred.anonymous=enabled (admin access)"
 
