@@ -51,11 +51,12 @@
 #   - Add :ro flag for read-only mounts
 #
 # INFO LABELS:
+#   - info.group - Service group for organizing output (e.g., "Database Services", "API Services")
 #   - info.title - Human-readable service name displayed by `compose info` (REQUIRED)
 #   - info.url.<type> for connection URLs (ui, api, jdbc, etc.)
 #   - info.cred.<type> for credential information (username, password, etc.)
 #   - Include environment variable defaults in labels for proper resolution
-#   - Example: compose info → shows ✓ PostgreSQL Database (from info.title)
+#   - Example: compose info → shows services grouped by info.group with titles from info.title
 #
 # QUICK REFERENCE - Docker Compose Commands (copy/paste ready):
 #   Start all services:    docker compose up --detach
@@ -81,6 +82,7 @@ services:
       - "${MCP_SSE_PORT:-3001}:3001"  # SSE server, configurable via MCP_SSE_PORT
     restart: unless-stopped
     labels:
+      - "info.group=MCP Services"
       - "info.title=Everything SSE Server"
       - "info.url.sse=http://localhost:${MCP_SSE_PORT:-3001}/sse"
       - "info.url.inspector=everything-sse:3001"
@@ -95,6 +97,7 @@ services:
       - "${MCP_STREAMABLE_PORT:-4001}:3001"  # Streamable HTTP server, configurable via MCP_STREAMABLE_PORT
     restart: unless-stopped
     labels:
+      - "info.group=MCP Services"
       - "info.title=Everything Streamable Server"
       - "info.url.streamable=http://localhost:${MCP_STREAMABLE_PORT:-4001}/mcp"
       - "info.url.inspector=everything-streamable:3001"
@@ -110,6 +113,7 @@ services:
       - "${MCP_INSPECTOR_WS_PORT:-6277}:6277"  # Inspector WebSocket, configurable via MCP_INSPECTOR_WS_PORT
     restart: unless-stopped
     labels:
+      - "info.group=MCP Services"
       - "info.title=MCP Inspector"
       - "info.url.ui=http://localhost:${MCP_INSPECTOR_PORT:-6274}"
       - "info.url.websocket=ws://localhost:${MCP_INSPECTOR_WS_PORT:-6277}"
@@ -130,6 +134,7 @@ services:
       - ./docker/db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: unless-stopped
     labels:
+      - "info.group=Database Services"
       - "info.title=PostgreSQL Database"
       - "info.url.jdbc=jdbc:postgresql://localhost:${PG_PORT:-15432}/mcp_dev"
       - "info.url.psql=postgresql://postgres:password@localhost:${PG_PORT:-15432}/postgres"
@@ -156,6 +161,7 @@ services:
       - ./docker/db/pgadmin/pgadmin_servers.json:/pgadmin4/servers.json:ro
     restart: unless-stopped
     labels:
+      - "info.group=Database Services"
       - "info.title=pgAdmin Web Interface"
       - "info.url.ui=http://localhost:${PGADMIN_PORT:-15433}"
       - "info.cred.username=admin@example.com"
@@ -174,6 +180,7 @@ services:
       - loki:/loki
     restart: unless-stopped
     labels:
+      - "info.group=Observability Services"
       - "info.title=Loki Logs"
       - "info.url.http=http://localhost:${LOKI_PORT:-3100}/metrics"
       - "info.url.api=http://localhost:${LOKI_PORT:-3100}"
@@ -189,6 +196,7 @@ services:
       - ./docker/observability/config/tempo.yaml:/etc/tempo.yaml:ro
     restart: unless-stopped
     labels:
+      - "info.group=Observability Services"
       - "info.title=Tempo Tracing"
       - "info.url.otlp=http://localhost:${TEMPO_PORT:-3200}"
       - "info.url.zipkin=http://localhost:${TEMPO_ZIPKIN_PORT:-9411}"
@@ -208,6 +216,7 @@ services:
       - ./docker/observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
     restart: unless-stopped
     labels:
+      - "info.group=Observability Services"
       - "info.title=OpenTelemetry Collector"
       - "info.url.grpc=grpc://localhost:${OTEL_COLLECTOR_GRPC_PORT:-4317}"
       - "info.url.http=http://localhost:${OTEL_COLLECTOR_HTTP_PORT:-4318}"
@@ -227,6 +236,7 @@ services:
       - ./docker/observability/config/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
     restart: unless-stopped
     labels:
+      - "info.group=Observability Services"
       - "info.title=Prometheus Metrics"
       - "info.url.ui=http://localhost:${PROMETHEUS_PORT:-9090}"
       - "info.url.api=http://localhost:${PROMETHEUS_PORT:-9090}/api/v1"
@@ -248,6 +258,7 @@ services:
       - ./docker/observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
     restart: unless-stopped
     labels:
+      - "info.group=Observability Services"
       - "info.title=Grafana Dashboard"
       - "info.url.ui=http://localhost:${GRAFANA_PORT:-3000}"
       - "info.cred.anonymous=enabled (admin access)"

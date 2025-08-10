@@ -243,9 +243,19 @@ main() {
             if [[ -n "$services_json" && "$services_json" != "null" ]]; then
                 echo
                 
-                # Process each service
-                echo "$services_json" | jq -r '.[] | select(.info.title) | "\(.service)\t\(.info | @json)"' | while IFS=$'\t' read -r service info_json; do
-                    process_service_info_json "$service" "$info_json"
+                # Group services by info.group and process
+                local groups_json
+                groups_json=$(echo "$services_json" | jq 'group_by(.info.group // "Other") | map({group: (.[0].info.group // "Other"), services: .})')
+                
+                echo "$groups_json" | jq -r '.[] | "\(.group)\t\(.services | @json)"' | while IFS=$'\t' read -r group services_in_group; do
+                    # Show group header
+                    log header "$group"
+                    echo
+                    
+                    # Process services in this group
+                    echo "$services_in_group" | jq -r '.[] | select(.info.title) | "\(.service)\t\(.info | @json)"' | while IFS=$'\t' read -r service info_json; do
+                        process_service_info_json "$service" "$info_json"
+                    done
                 done
             else
                 log warn "No services found"

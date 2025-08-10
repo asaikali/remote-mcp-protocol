@@ -135,7 +135,8 @@ Services should follow this field order for consistency and readability:
 - **Labels are set on services in compose.yaml**: Docker Compose applies service labels to all container instances of that service
 - Labels use environment variable interpolation from `.env`
 - Label naming convention: `info.*` prefix for anything displayed by info command
-  - `info.title` - Human-readable service name displayed by info command (REQUIRED)
+  - `info.group` - Service group for organizing output (e.g., "Database Services", "API Services")
+  - `info.title` - Human-readable service name displayed by info command (REQUIRED)  
   - `info.url.<url-type>` for different URL types (jdbc, ui, grpc, http, etc.)
   - `info.cred.<credential_type>` for credentials (username, password, api_key, etc.)
 - **Label extraction**: The compose script extracts labels from service configuration using `docker compose config` to show available connection information
@@ -150,6 +151,7 @@ Services should follow this field order for consistency and readability:
         POSTGRES_USER: ${POSTGRES_CRED_USERNAME}
         POSTGRES_PASSWORD: ${POSTGRES_CRED_PASSWORD}
       labels:
+        - "info.group=Database Services"
         - "info.title=PostgreSQL Database"
         - "info.url.jdbc=jdbc:postgresql://localhost:${POSTGRES_PORT}/mydb"
         - "info.url.ui=http://localhost:${PGADMIN_PORT}"
@@ -157,10 +159,11 @@ Services should follow this field order for consistency and readability:
         - "info.cred.password=${POSTGRES_CRED_PASSWORD}"
     
     pgadmin:
-      image: dpage/pgladmin4:latest
+      image: dpage/pgadmin4:latest
       ports:
         - "${PGADMIN_PORT}:80"
       labels:
+        - "info.group=Database Services"
         - "info.title=pgAdmin Web Interface"
         - "info.url.ui=http://localhost:${PGADMIN_PORT}"
         - "info.cred.username=admin@example.com"
