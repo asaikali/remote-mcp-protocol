@@ -8,9 +8,9 @@ Based on the design constraints in `compose-design.md`, here's the implementatio
 - Create new `compose` script with proper shebang and error handling (`set -Eeuo pipefail`)
 - Implement basic logging functions with colors
 - Add convention validation functions:
-  - Check for `compose.yaml` existence
-  - Check for `.env` existence
-  - Validate all services have profiles set
+  - `check_compose_file()` - Check for `compose.yaml` existence (exact filename required)
+  - `check_env_file()` - Check for `.env` existence (required by convention)
+  - `check_service_profiles()` - Validate all services have profiles set (using yq)
 
 ### 1.2 Environment Loading
 - Implement the `load_env()` function using the `set -a` / `source` approach:
@@ -75,45 +75,91 @@ Each command should:
 
 ## Phase 4: Error Handling & Validation
 
-### 4.1 Convention Validation
-- Validate `compose.yaml` exists and is the only compose file
-- Validate `.env` exists (required by convention)
-- Validate all services have profiles (parse compose.yaml to check)
-- Fail fast with clear error messages for convention violations
+### 4.1 Convention Validation Functions
+**`check_compose_file()`**:
+```bash
+check_compose_file() {
+  [[ -f compose.yaml ]] || { log error "compose.yaml not found - only compose.yaml filename is supported"; exit 1; }
+}
+```
+
+**`check_env_file()`**:
+```bash
+check_env_file() {
+  [[ -f .env ]] || { log error ".env file not found - required by convention"; exit 1; }
+}
+```
+
+**`check_service_profiles()`**:
+```bash
+check_service_profiles() {
+  # Find services without profiles using yq
+  local services_without_profiles=$(yq '.services | to_entries | map(select(.value.profiles == null)) | .[].key' compose.yaml 2>/dev/null)
+  
+  if [[ -n "$services_without_profiles" ]]; then
+    log error "Services missing profiles: $(echo $services_without_profiles | tr '\n' ' ')"
+    log error "All services must have profiles explicitly set - convention violation"
+    exit 1
+  fi
+}
+```
+
+**`validate_conventions()`**:
+```bash
+validate_conventions() {
+  check_compose_file
+  check_env_file  
+  check_service_profiles
+}
+```
 
 ### 4.2 Docker Compose Integration
-- For non-convention errors, let docker compose handle validation
-- Pass through docker compose error messages
-- Maintain fail-fast behavior
+- For non-convention errors (invalid profiles, missing images, etc.), let docker compose handle validation
+- Pass through docker compose error messages without modification
+- Maintain fail-fast behavior throughout
+
+### 4.3 Error Categories
+**Convention Violations (Script handles)**:
+- Missing `compose.yaml` file
+- Missing `.env` file  
+- Services without profiles
+- Wrong compose file variants (docker-compose.yaml, etc.)
+
+**Docker Compose Violations (Let docker compose handle)**:
+- Invalid profile names
+- Missing environment variables
+- Invalid Docker images
+- Service dependency issues
+- Network/volume configuration errors
 
 ## Implementation Details
 
 ### Core Functions Needed:
 ```bash
-# Convention validation
-validate_conventions()
-check_compose_file()
-check_env_file()  
-check_service_profiles()
+# Convention validation (detailed implementations in Phase 4)
+validate_conventions()        # Calls all validation functions
+check_compose_file()         # Validate compose.yaml exists
+check_env_file()            # Validate .env exists  
+check_service_profiles()    # Use yq to find services without profiles
 
 # Environment handling
-load_env()
+load_env()                  # Use set -a / source approach
 
 # Profile management
-get_profiles()
-parse_profiles()              # Handle "default", "all", and specific profiles (all are regular profiles)
-build_profile_args()
+get_profiles()             # Use docker compose config --profiles
+parse_profiles()           # Handle "default", "all", and specific profiles
+build_profile_args()       # Build --profile flags for docker compose
 
 # Docker compose wrapper
 docker_compose_with_profiles()
 
 # Status/label handling
-extract_status_labels()
-format_status_output()
+extract_status_labels()    # Pull status.* labels from running containers
+format_status_output()     # Format connection info nicely
 
 # Utilities
-log()
-show_profile_divider()
+log()                      # Colored logging function
+show_profile_divider()     # Visual separator for profile operations
 ```
 
 ### Command Structure:
@@ -161,11 +207,24 @@ esac
 ```
 
 ## Testing Strategy:
-1. Test convention validation (missing files, missing profiles)
-2. Test environment loading precedence
-3. Test profile filtering for each command
-4. Test status label extraction and formatting
-5. Test integration with existing compose.yaml
+1. **Convention Validation Testing**:
+   - Missing `compose.yaml` file → should fail with clear message
+   - Missing `.env` file → should fail with clear message
+   - Services without profiles → should fail listing which services
+   - Valid configuration → should pass validation
+2. **Environment Loading Testing**:
+   - Test `.env` file loading
+   - Test `.env.local` overrides
+   - Test shell environment precedence
+3. **Profile System Testing**:
+   - `compose up` → runs "default" profile only
+   - `compose up all` → runs "all" profile only  
+   - `compose up postgres mcp` → runs specified profiles
+4. **Status/Label Testing**:
+   - Test `status.*` label extraction
+   - Test connection info formatting
+5. **Integration Testing**:
+   - Test with real compose.yaml having proper profiles and labels
 
 ## Migration from Current System:
 1. Keep current `compose` and `simple` scripts during development
