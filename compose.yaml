@@ -60,9 +60,9 @@
 #   - Include environment variable defaults in labels for proper resolution
 #
 # QUICK REFERENCE - Docker Compose Commands (copy/paste ready):
-#   Start all services:    docker compose --profile all up -d
+#   Start all services:    docker compose --profile all up --detach
 #   Stop all services:     docker compose --profile all down
-#   Clean everything:      docker compose --profile all down -v --remove-orphans
+#   Clean everything:      docker compose --profile all down --volumes  --remove-orphans
 #   Show status:           docker compose --profile all ps
 #   View logs:             docker compose --profile all logs -f
 #   Restart services:      docker compose --profile all restart
