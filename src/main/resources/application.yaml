@@ -3,8 +3,7 @@ spring:
     name: remote-mcp-protocol
   docker:
     compose:
-      file: src/main/docker/compose.yaml
-      lifecycle-management: start_and_stop
+      lifecycle-management: start_only
 
 logging:
   level:
