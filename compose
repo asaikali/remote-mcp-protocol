@@ -170,35 +170,33 @@ show_profile_divider() {
 #------------------------------------------------------------------------------
 # Service Status Processing
 #------------------------------------------------------------------------------
-process_service_status() {
+process_service_status_json() {
     local service="$1"
-    local service_labels="$2"
+    local status_json="$2"
     
     # Extract title
     local title
-    title=$(echo "$service_labels" | grep '^status\.title=' | cut -d'=' -f2- || true)
+    title=$(echo "$status_json" | jq -r '.title // empty')
     
     if [[ -n "$title" ]]; then
         log success "$title"
         
         # Show URLs
-        local url_lines
-        url_lines=$(echo "$service_labels" | grep '^status\.url\.' || true)
-        if [[ -n "$url_lines" ]]; then
-            while IFS='=' read -r key value; do
-                local url_type="${key#status.url.}"
-                printf "    → %s: %s\n" "$url_type" "$value"
-            done <<< "$url_lines"
+        local urls
+        urls=$(echo "$status_json" | jq -r '.url // {} | to_entries[] | "\(.key): \(.value)"' 2>/dev/null || true)
+        if [[ -n "$urls" ]]; then
+            while IFS= read -r url_line; do
+                printf "    → %s\n" "$url_line"
+            done <<< "$urls"
         fi
         
         # Show credentials
-        local cred_lines
-        cred_lines=$(echo "$service_labels" | grep '^status\.cred\.' || true)
-        if [[ -n "$cred_lines" ]]; then
-            while IFS='=' read -r key value; do
-                local cred_type="${key#status.cred.}"
-                printf "    → %s: %s\n" "$cred_type" "$value"
-            done <<< "$cred_lines"
+        local creds
+        creds=$(echo "$status_json" | jq -r '.cred // {} | to_entries[] | "\(.key): \(.value)"' 2>/dev/null || true)
+        if [[ -n "$creds" ]]; then
+            while IFS= read -r cred_line; do
+                printf "    → %s\n" "$cred_line"
+            done <<< "$creds"
         fi
         
         echo
@@ -295,43 +293,28 @@ main() {
             profiles=$(parse_profiles "$@")
             show_profile_divider "$profiles" "Status"
             
-            # Get all status labels using jq
-            local status_data
-            status_data=$(docker_compose_with_profiles "config" "$profiles" --format json | jq -r '.services | to_entries[]
-                         | select(.value.labels)
-                         | .key as $svc
-                         | .value.labels
-                         | to_entries[]
-                         | select(.key|startswith("status."))
-                         | "\($svc)\t\(.key)=\(.value)"' 2>/dev/null || true)
+            # Get structured status data using jq
+            local services_json
+            services_json=$(docker_compose_with_profiles "config" "$profiles" --format json | jq '.services
+                           | to_entries
+                           | map({
+                               service: .key,
+                               status:
+                                 ((.value.labels // {})
+                                  | to_entries
+                                  | map(select(.key|startswith("status.")))
+                                  | map({path: (.key | split(".")[1:]), value: .value})
+                                  | reduce .[] as $i ({}; setpath($i.path; $i.value))
+                                 )
+                             })' 2>/dev/null)
             
-            if [[ -n "$status_data" ]]; then
+            if [[ -n "$services_json" && "$services_json" != "null" ]]; then
                 echo
                 
-                # Group by service and process
-                local current_service=""
-                local service_labels=""
-                
-                while IFS=$'\t' read -r service label; do
-                    if [[ "$service" != "$current_service" ]]; then
-                        # Process previous service if it exists
-                        if [[ -n "$current_service" && -n "$service_labels" ]]; then
-                            process_service_status "$current_service" "$service_labels"
-                        fi
-                        
-                        # Start new service
-                        current_service="$service"
-                        service_labels="$label"
-                    else
-                        # Add to current service labels
-                        service_labels="$service_labels"$'\n'"$label"
-                    fi
-                done <<< "$status_data"
-                
-                # Process final service
-                if [[ -n "$current_service" && -n "$service_labels" ]]; then
-                    process_service_status "$current_service" "$service_labels"
-                fi
+                # Process each service
+                echo "$services_json" | jq -r '.[] | select(.status.title) | "\(.service)\t\(.status | @json)"' | while IFS=$'\t' read -r service status_json; do
+                    process_service_status_json "$service" "$status_json"
+                done
             else
                 log warn "No services found for specified profile(s)"
             fi
