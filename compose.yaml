@@ -25,11 +25,11 @@
 #
 # PROFILE SYSTEM:
 #   - Every service MUST have explicit profiles set
-#   - "default": Services for daily development (mcp + db services)
+#   - "default": Services for daily development (core services needed for development)
 #   - "all": All services including observability stack
-#   - "db": Database services only (postgres, pgadmin)
-#   - "mcp": MCP services only (everything-sse, everything-streamable, mcp-inspector)
-#   - "observability": Observability services only (grafana, prometheus, loki, tempo, otel-collector)
+#   - "db": Database services (postgres, pgadmin, redis, etc.)
+#   - "observability": Observability services (grafana, prometheus, loki, tempo, otel-collector)
+#   - Custom profiles: Add project-specific profiles as needed (api, frontend, cache, etc.)
 #
 # NAMING CONVENTIONS:
 #   - No explicit container_name - let Docker Compose auto-generate
