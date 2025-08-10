@@ -38,6 +38,13 @@ Before implementing the compose script, the `compose.yaml` and `.env` files must
 3. **Missing .env File**: Environment variables are defined inline with defaults, but convention requires separate `.env` file
 4. **Environment Variable Names**: Need to verify all variables follow `<SERVICE_NAME>_*` naming convention
 
+## Profile-Based Directory Structure (Convention Only):
+**Note**: The `docker/` directory structure follows profile organization but the script does NOT enforce this:
+- `docker/db/` - Database-related files (postgres/, pgadmin/)
+- `docker/mcp/` - MCP service files (Dockerfile, entry-point.sh)  
+- `docker/observability/` - Observability configs and dashboards
+- Authors of compose.yaml reference these files as needed in their service definitions
+
 ## Part 1 Phase 1: Profile System Decision
 **TODO LIST:**
 - [ ] **Decision Required**: Determine profile approach:

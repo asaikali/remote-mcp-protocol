@@ -28,8 +28,10 @@ This document defines the design constraints for the `compose` script and associ
 - The compose script only works with `compose.yaml` (exact filename) and expects that file to be in the same location as the script itself. No other compose file variants are supported
 - There is only one `compose.yaml` at the root of the repo, and developers cut and paste their containers into it
 - At the same level as the compose script and compose.yaml, there is a folder called `docker`
-- Under the `docker` folder, there is a directory for each service name that needs to be configured with files that might need to be mounted, etc.
-- If a service is locally buildable, a Dockerfile can be found in that service's directory under `docker/`
+- **Profile-Based Directory Structure**: Under the `docker` folder, there is a directory for each profile (e.g., `db/`, `mcp/`, `observability/`)
+- **Optional Service Subdirectories**: Under each profile directory, there can be optional subdirectories for individual services (e.g., `db/postgres/`, `db/pgladmin/`)
+- **Flexible File Organization**: Service configuration files, Dockerfiles, and mount files are organized by profile, with authors of compose.yaml referencing these files as needed
+- **No Script Enforcement**: The compose script does not enforce this directory structure - it's a convention for developers to follow when organizing their Docker-related files
 - We follow whatever policy is set in the docker compose yaml - no restrictions on whether services pull network images or build locally
 - A service can reference an image pulled from the network, built locally, or both (developer's choice)
 - Dependency management is handled via the docker compose `depends_on` field that developers bake into the compose.yaml
