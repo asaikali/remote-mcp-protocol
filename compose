@@ -131,18 +131,6 @@ parse_profiles() {
     printf "%s " "${profiles[@]}"
 }
 
-build_profile_args() {
-    local profiles_string="$1"
-    local args=()
-    
-    # Convert space-separated string to array and build --profile args
-    for profile in $profiles_string; do
-        args+=(--profile "$profile")
-    done
-    
-    printf "%s " "${args[@]}"
-}
-
 #------------------------------------------------------------------------------
 # Docker Compose Wrapper
 #------------------------------------------------------------------------------
@@ -152,11 +140,14 @@ docker_compose_with_profiles() {
     shift 2
     local remaining_args=("$@")
     
-    local profile_args
-    profile_args=$(build_profile_args "$profiles_string")
+    # Build profile arguments array
+    local profile_args=()
+    for profile in $profiles_string; do
+        profile_args+=(--profile "$profile")
+    done
     
-    # Execute docker compose with profile arguments
-    docker compose $profile_args "$cmd" "${remaining_args[@]}"
+    # Execute docker compose with profile arguments before command
+    docker compose "${profile_args[@]}" "$cmd" "${remaining_args[@]}"
 }
 
 #------------------------------------------------------------------------------
@@ -238,7 +229,7 @@ main() {
             
             if [[ "$cmd" == "up" ]]; then
                 # Try to start services, handle port conflicts
-                if ! docker_compose_with_profiles up "$profiles" -d; then
+                if ! docker_compose_with_profiles "up" "$profiles" -d; then
                     log error "Failed to start services - likely port conflicts"
                     log info "Check running containers with: docker ps"
                     log info "Stop conflicting services or change ports in .env"
@@ -254,7 +245,7 @@ main() {
             local profiles
             profiles=$(parse_profiles "$@")
             show_profile_divider "$profiles" "Cleaning"
-            docker_compose_with_profiles down "$profiles" -v --remove-orphans
+            docker_compose_with_profiles "down" "$profiles" -v --remove-orphans
             log success "Cleanup completed"
             ;;
             
@@ -264,14 +255,14 @@ main() {
             show_profile_divider "$profiles" "Status"
             
             # Show container status
-            docker_compose_with_profiles ps "$profiles"
+            docker_compose_with_profiles "ps" "$profiles"
             
             # Show connection information from labels
             echo
             log header "Connection Information"
             
             local containers
-            containers=$(docker_compose_with_profiles ps "$profiles" -q)
+            containers=$(docker_compose_with_profiles "ps" "$profiles" -q)
             
             if [[ -n "$containers" ]]; then
                 for container in $containers; do
