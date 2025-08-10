@@ -144,12 +144,13 @@ shutdown_conflict() { # (container)
 
 # Function: show_port_conflicts
 # Description: Displays information about port conflicts and how to resolve them
-# Usage example:
-#   show_port_conflicts
 show_port_conflicts() {
+  local profile="$1"
   local port cnt dir file
+  ports_array=($(get_ports_for_profile "$profile"))
+  
   # Check ports for conflicts
-  for port in "${PORTS[@]}"; do
+  for port in "${ports_array[@]}"; do
     # If port is in use by another container
     if cnt=$(detect_conflict "$port"); [[ -n $cnt ]]; then
       log warn "Port $port is already used by container: $cnt"
@@ -167,23 +168,24 @@ show_port_conflicts() {
     fi
   done
   # Show quick fix options
-  log info "Quick fix: ./compose fix"
+  if [[ "$profile" == "all" ]]; then
+    log info "Quick fix: ./compose fix"
+  else
+    log info "Quick fix: ./compose fix $profile"
+  fi
 }
 
 #------------------------------------------------------------------------------
 # Connection info display
 #------------------------------------------------------------------------------
-# Function: show_connections
-# Description: Displays connection information for the MCP stack services
-# Usage example:
-#   show_connections
-show_connections() {
-  # Display section header
-  log section "Connection Info"
-  local lbl pad="%-20s"
+# Function: show_mcp_connections
+# Description: Displays connection information for MCP services
+show_mcp_connections() {
+  local profile="$1"
+  local pad="%-20s"
 
   # Check if MCP Inspector container is running
-  if docker_compose ps --services --filter status=running | grep -q mcp-inspector; then
+  if docker_compose "$profile" ps --services --filter status=running | grep -q mcp-inspector; then
     # Display Inspector GUI URL with a green checkmark
     printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Inspector GUI" "http://localhost:$MCP_INSPECTOR_PORT"
     printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Inspector Proxy" "WebSocket on :$MCP_INSPECTOR_WS_PORT"
@@ -193,7 +195,7 @@ show_connections() {
   fi
 
   # Check if SSE server container is running
-  if docker_compose ps --services --filter status=running | grep -q everything-sse; then
+  if docker_compose "$profile" ps --services --filter status=running | grep -q everything-sse; then
     # Display SSE server URL with a green checkmark
     printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "SSE Server" "http://localhost:$MCP_SSE_PORT/sse"
     printf "${GREEN}  ${pad}  ${NC}  ${YELLOW}Inspector URL${NC}: everything-sse:3001\n" ""
@@ -203,7 +205,7 @@ show_connections() {
   fi
 
   # Check if Streamable HTTP server container is running
-  if docker_compose ps --services --filter status=running | grep -q everything-streamable; then
+  if docker_compose "$profile" ps --services --filter status=running | grep -q everything-streamable; then
     # Display Streamable server URL with a green checkmark
     printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Streamable Server" "http://localhost:$MCP_STREAMABLE_PORT/mcp"
     printf "${GREEN}  ${pad}  ${NC}  ${YELLOW}Inspector URL${NC}: everything-streamable:3001\n" ""
@@ -217,6 +219,60 @@ show_connections() {
   log info "To connect Inspector to services on your Mac:"
   log info "→ Use: http://host.docker.internal:PORT"
   log info "→ Example: http://host.docker.internal:3001"
+}
+
+# Function: show_postgres_connections  
+# Description: Displays connection information for PostgreSQL services
+show_postgres_connections() {
+  local profile="$1"
+  local pad="%-8s"
+
+  # Check if PostgreSQL container is running
+  if docker_compose "$profile" ps --services --filter status=running | grep -q postgres; then
+    # Display PostgreSQL connection information with a green checkmark
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s:%s  user=%s  db=%s\n" "PG" "localhost" "$PG_PORT" "postgres" "postgres"
+    # Display JDBC connection URL
+    printf "  ${pad}: jdbc:postgresql://%s:%s/%s\n" "JDBC" "localhost" "$PG_PORT" "mcp_dev"
+    # Display psql command for command-line access
+    printf "  ${pad}: PGPASSWORD=%s psql -h %s -p %s -U %s -d %s\n" "PSQL" "password" "localhost" "$PG_PORT" "postgres" "postgres"
+  else
+    # Display warning if PostgreSQL is not running
+    log warn "PostgreSQL not running"
+  fi
+
+  # Check if pgAdmin container is running
+  if docker_compose "$profile" ps --services --filter status=running | grep -q pgadmin; then
+    # Display pgAdmin URL with a green checkmark
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "pgAdmin" "http://localhost:$PGADMIN_PORT"
+  else
+    # Display warning if pgAdmin is not running
+    log warn "pgAdmin not running"
+  fi
+}
+
+# Function: show_connections
+# Description: Displays connection information based on profile
+show_connections() {
+  local profile="$1"
+  
+  # Display section header
+  log section "Connection Info"
+  
+  case "$profile" in
+    mcp)
+      show_mcp_connections "$profile"
+      ;;
+    postgres)
+      show_postgres_connections "$profile" 
+      ;;
+    all)
+      log info "MCP Services"
+      show_mcp_connections "$profile"
+      echo
+      log info "PostgreSQL Services"  
+      show_postgres_connections "$profile"
+      ;;
+  esac
 }
 
 #------------------------------------------------------------------------------
@@ -245,22 +301,27 @@ build_image() {
 #   usage
 usage() {
   # Display the main usage header with bold formatting
-  printf "${BOLD}Usage:${NC} ./compose <command>\n\n"
+  printf "${BOLD}Usage:${NC} ./compose <command> [profile]\n\n"
   printf "Commands:\n"
   # List all available commands with color coding matching their function
-  printf "  ${BLUE}build${NC}         Build the MCP everything Docker image\n"
-  printf "  ${GREEN}up${NC}            Start MCP stack containers\n"
+  printf "  ${BLUE}build${NC}         Build Docker images\n"
+  printf "  ${GREEN}up${NC}            Start containers\n"
   printf "  ${BLUE}status${NC}        Show status & connection info\n"
   printf "  ${YELLOW}down${NC}          Stop containers\n"
   printf "  ${RED}clean${NC}         Stop containers & remove volumes\n"
   printf "  ${YELLOW}fix${NC}           Detect & fix port conflicts\n"
   printf "  ${BLUE}ports${NC}         Show current port configuration\n"
-  printf "  ${BLUE}logs${NC}          Show container logs (optionally specify service)\n"
-  printf "\nExamples:\n"
-  printf "  ./compose build\n"
-  printf "  ./compose up\n"
-  printf "  ./compose logs mcp-inspector\n"
-  printf "  ./compose logs --tail 50\n"
+  printf "  ${BLUE}logs${NC}          Show container logs (optionally specify service)\n\n"
+  printf "Profiles (optional):\n"
+  printf "  ${GREEN}mcp${NC}           MCP services only (Inspector, SSE, Streamable)\n"
+  printf "  ${BLUE}postgres${NC}      PostgreSQL services only (PostgreSQL, pgAdmin)\n"
+  printf "  ${YELLOW}all${NC}           All services (default)\n\n"
+  printf "Examples:\n"
+  printf "  ./compose up                    # Start all services\n"
+  printf "  ./compose up mcp                # Start only MCP services\n"
+  printf "  ./compose status postgres       # Show only PostgreSQL status\n"
+  printf "  ./compose ports mcp             # Show only MCP ports\n"
+  printf "  ./compose logs everything-sse   # Show logs from specific service\n"
 }
 
 #------------------------------------------------------------------------------
@@ -281,7 +342,7 @@ COMPOSE_FILE="$(find_compose_file "$SCRIPT_DIR")" || { log error "No compose fil
 setup_ports() {
   # Track which variables were originally set as environment variables
   local originally_set_vars=()
-  for var in MCP_SSE_PORT MCP_STREAMABLE_PORT MCP_INSPECTOR_PORT MCP_INSPECTOR_WS_PORT; do
+  for var in MCP_SSE_PORT MCP_STREAMABLE_PORT MCP_INSPECTOR_PORT MCP_INSPECTOR_WS_PORT PG_PORT PGADMIN_PORT; do
     if [[ -n "${!var:-}" ]]; then
       originally_set_vars+=("$var")
     fi
@@ -319,17 +380,57 @@ setup_ports() {
   export MCP_STREAMABLE_PORT=${MCP_STREAMABLE_PORT:-4001}
   export MCP_INSPECTOR_PORT=${MCP_INSPECTOR_PORT:-6274}
   export MCP_INSPECTOR_WS_PORT=${MCP_INSPECTOR_WS_PORT:-6277}
+  export PG_PORT=${PG_PORT:-15432}
+  export PGADMIN_PORT=${PGADMIN_PORT:-15433}
   
-  # Define ports array with current values
-  PORTS=(
+  # Define ports arrays for each profile
+  MCP_PORTS=(
     "$MCP_SSE_PORT"         # SSE Server
     "$MCP_STREAMABLE_PORT"  # Streamable HTTP Server
     "$MCP_INSPECTOR_PORT"   # MCP Inspector GUI
     "$MCP_INSPECTOR_WS_PORT" # MCP Inspector WebSocket
   )
+  
+  POSTGRES_PORTS=(
+    "$PG_PORT"              # PostgreSQL
+    "$PGADMIN_PORT"         # pgAdmin
+  )
+  
+  ALL_PORTS=("${MCP_PORTS[@]}" "${POSTGRES_PORTS[@]}")
 }
 
-# setup_ports will be called for each command that needs it
+# Profile and command parsing
+parse_profile() {
+  local profile="${1:-all}"
+  case "$profile" in
+    mcp|postgres|all) echo "$profile" ;;
+    *) echo "all" ;;  # Default to all for unknown profiles
+  esac
+}
+
+# Docker compose wrapper with profile support
+docker_compose() {
+  local profile="$1"
+  shift
+  
+  case "$profile" in
+    mcp)      docker compose -f "$COMPOSE_FILE" --profile mcp "$@" ;;
+    postgres) docker compose -f "$COMPOSE_FILE" --profile postgres "$@" ;;
+    all)      docker compose -f "$COMPOSE_FILE" --profile mcp --profile postgres "$@" ;;
+    *)        docker compose -f "$COMPOSE_FILE" --profile mcp --profile postgres "$@" ;;
+  esac
+}
+
+# Get ports array based on profile
+get_ports_for_profile() {
+  local profile="$1"
+  case "$profile" in
+    mcp)      echo "${MCP_PORTS[@]}" ;;
+    postgres) echo "${POSTGRES_PORTS[@]}" ;;
+    all)      echo "${ALL_PORTS[@]}" ;;
+    *)        echo "${ALL_PORTS[@]}" ;;
+  esac
+}
 
 #------------------------------------------------------------------------------
 # Main command handler
@@ -339,55 +440,106 @@ cmd=${1-}
 
 # Process the command using a case statement
 case $cmd in
-  # Build command: Build the MCP everything Docker image
+  # Build command: Build Docker images
   build)
-    build_image
+    profile=$(parse_profile "${2:-}")
+    setup_ports  # Load port configuration
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Building Docker images"
+    else
+      log header "Building Docker images ($profile profile)"
+    fi
+    
+    if docker_compose "$profile" build; then
+      log success "Docker images built successfully"
+    else
+      log error "Failed to build Docker images"
+      exit 1
+    fi
     ;;
 
-  # Up command: Start MCP stack containers
+  # Up command: Start containers
   up)
+    profile=$(parse_profile "${2:-}")
     setup_ports  # Load port configuration
-    log header "Starting containers"
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Starting containers"
+    else
+      log header "Starting containers ($profile profile)"
+    fi
+    
     # Try to start the containers in detached mode
-    if docker_compose up -d; then
+    if docker_compose "$profile" up -d; then
       # If successful, show success message and container status
       log success "Containers started"
-      docker_compose ps
-      show_connections
+      docker_compose "$profile" ps
+      show_connections "$profile"
     else
       # If failed (likely due to port conflict), show error and port conflict info
       log error "Failed to start – port conflict detected"
-      show_port_conflicts
+      show_port_conflicts "$profile"
       exit 1  # Exit with error code
     fi
     ;;
 
   # Down command: Stop the running containers
   down)
-    log header "Stopping containers"
-    docker_compose down --remove-orphans  # Stop containers and remove networks and orphans
+    profile=$(parse_profile "${2:-}")
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Stopping containers"
+    else
+      log header "Stopping containers ($profile profile)"
+    fi
+    
+    docker_compose "$profile" down --remove-orphans  # Stop containers and remove networks and orphans
     ;;
 
   # Clean command: Stop containers and remove volumes (data cleanup)
   clean)
-    log header "Cleaning containers & volumes"
-    docker_compose down -v --remove-orphans  # -v flag removes volumes
+    profile=$(parse_profile "${2:-}")
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Cleaning containers & volumes"
+    else
+      log header "Cleaning containers & volumes ($profile profile)"
+    fi
+    
+    docker_compose "$profile" down -v --remove-orphans  # -v flag removes volumes
     ;;
 
   # Status command: Show container status and connection information
   status)
+    profile=$(parse_profile "${2:-}")
     setup_ports  # Load port configuration
-    log header "Container Status"
-    docker_compose ps       # Show container status
-    show_connections        # Show connection information
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Container Status"
+    else
+      log header "Container Status ($profile profile)"
+    fi
+    
+    docker_compose "$profile" ps       # Show container status
+    show_connections "$profile"        # Show connection information
     ;;
 
   # Fix command: Automatically resolve port conflicts
   fix)
+    profile=$(parse_profile "${2:-}")
     setup_ports  # Load port configuration
-    log header "Resolving Port Conflicts"
-    # For each port in the MCP stack
-    for p in "${PORTS[@]}"; do
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Resolving Port Conflicts"
+    else
+      log header "Resolving Port Conflicts ($profile profile)"
+    fi
+    
+    # Get ports for the profile
+    ports_array=($(get_ports_for_profile "$profile"))
+    # For each port in the profile
+    for p in "${ports_array[@]}"; do
       # If port is in use by a container, shut it down
       if c=$(detect_conflict "$p"); [[ -n $c ]]; then
         shutdown_conflict "$c"
@@ -397,12 +549,39 @@ case $cmd in
 
   # Ports command: Show current port configuration
   ports)
+    profile=$(parse_profile "${2:-}")
     setup_ports  # Load port configuration
-    log header "Port Configuration"
-    printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "SSE Server" "$MCP_SSE_PORT"
-    printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Streamable HTTP Server" "$MCP_STREAMABLE_PORT"
-    printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector GUI" "$MCP_INSPECTOR_PORT"
-    printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector WebSocket" "$MCP_INSPECTOR_WS_PORT"
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Port Configuration"
+    else
+      log header "Port Configuration ($profile profile)"
+    fi
+    
+    case "$profile" in
+      mcp)
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "SSE Server" "$MCP_SSE_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Streamable HTTP Server" "$MCP_STREAMABLE_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector GUI" "$MCP_INSPECTOR_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector WebSocket" "$MCP_INSPECTOR_WS_PORT"
+        ;;
+      postgres)
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "PostgreSQL" "$PG_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "pgAdmin" "$PGADMIN_PORT"
+        ;;
+      all)
+        log info "MCP Services"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "SSE Server" "$MCP_SSE_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Streamable HTTP Server" "$MCP_STREAMABLE_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector GUI" "$MCP_INSPECTOR_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector WebSocket" "$MCP_INSPECTOR_WS_PORT"
+        echo
+        log info "PostgreSQL Services"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "PostgreSQL" "$PG_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "pgAdmin" "$PGADMIN_PORT"
+        ;;
+    esac
+    
     echo
     log info "To change ports, you have several options:"
     log info "→ Create .env.local: cp .env.local.example .env.local (recommended)"
@@ -415,13 +594,33 @@ case $cmd in
   # Logs command: Show container logs
   logs)
     shift # Remove 'logs' from arguments
-    log header "Container Logs"
-    if [[ $# -eq 0 ]]; then
-      # No specific service specified, show all logs
-      docker_compose logs -f
+    
+    # Check if second argument is a profile
+    profile="all"
+    args=("$@")
+    
+    if [[ $# -gt 0 ]]; then
+      case "$1" in
+        mcp|postgres|all)
+          profile="$1"
+          shift
+          args=("$@")
+          ;;
+      esac
+    fi
+    
+    if [[ "$profile" == "all" ]]; then
+      log header "Container Logs"
+    else
+      log header "Container Logs ($profile profile)"
+    fi
+    
+    if [[ ${#args[@]} -eq 0 ]]; then
+      # No specific service specified, show all logs for profile
+      docker_compose "$profile" logs -f
     else
       # Show logs for specific service or with specific options
-      docker_compose logs "$@"
+      docker_compose "$profile" logs "${args[@]}"
     fi
     ;;
 

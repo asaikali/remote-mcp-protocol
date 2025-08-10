@@ -1,43 +1,82 @@
 # MCP Docker Environment
 
-This Docker environment provides a complete setup for exploring the Model Context Protocol (MCP) with multiple server implementations and a web-based inspector GUI.
+This Docker environment provides a complete setup for exploring the Model Context Protocol (MCP) with multiple server implementations, a web-based inspector GUI, and a PostgreSQL database for development.
 
 ## Quick Start
 
 ### Method 1: Using the Compose Script (Recommended)
 
-The `compose` script (located at the root of the repository) provides a simple interface to manage the MCP stack:
+The `compose` script (located at the root of the repository) provides a simple interface to manage both MCP and PostgreSQL services using Docker Compose profiles:
 
 ```bash
-# From the repository root:
-./compose build
+# From the repository root - Start ALL services (MCP + PostgreSQL):
+./compose up
 
 # Or if using direnv (which adds the root to PATH):
-compose build
+compose up
 
-# Start all services
-compose start
+# Start only MCP services (Inspector, SSE, Streamable):
+compose up mcp
 
-# Check status and connection info
+# Start only PostgreSQL services (PostgreSQL + pgAdmin):
+compose up postgres
+
+# Check status of all services:
 compose status
 
-# View logs
+# Check status of specific profile:
+compose status mcp
+compose status postgres
+
+# View logs from all services:
 compose logs
 
-# Stop services
-compose stop
+# View logs from specific profile:
+compose logs mcp
+compose logs postgres
+
+# Stop all services:
+compose down
+
+# Stop specific profile:
+compose down mcp
 ```
 
 **Note**: If you have [direnv](https://direnv.net) installed and run `direnv allow`, the compose script will be available in your PATH from anywhere within the repository.
 
+## Docker Directory Structure
+
+The Docker environment is organized into profile-specific subdirectories:
+
+```
+docker/
+├── mcp/
+│   ├── Dockerfile          # MCP services image
+│   └── entry-point.sh      # MCP container entry point
+├── postgres/
+│   ├── init.sql           # PostgreSQL database initialization
+│   └── pgadmin_servers.json  # pgAdmin server configuration
+└── README.md              # This documentation
+```
+
+This modular structure allows for:
+- **Clean separation** of concerns between MCP and PostgreSQL
+- **Independent builds** for each service type
+- **Easy maintenance** and updates per service group
+
 ## Port Configuration
 
-The MCP stack uses configurable ports via environment variables. Default ports:
+The environment supports configurable ports for all services via environment variables. Default ports:
 
+**MCP Services:**
 - **SSE Server**: 3001
 - **Streamable HTTP Server**: 4001  
 - **Inspector GUI**: 6274
 - **Inspector WebSocket**: 6277
+
+**PostgreSQL Services:**
+- **PostgreSQL Database**: 15432
+- **pgAdmin Web Interface**: 15433
 
 ### Configuring Ports
 
@@ -128,6 +167,8 @@ When the inspector (running inside Docker) tries to connect to `http://localhost
 
 ## Available Services
 
+### MCP Services (Profile: `mcp`)
+
 | Service | Default Port | URL | Description |
 |---------|--------------|-----|-------------|
 | Inspector GUI | 6274* | http://localhost:6274 | Web interface for inspecting MCP servers |
@@ -135,7 +176,14 @@ When the inspector (running inside Docker) tries to connect to `http://localhost
 | SSE Server | 3001* | http://localhost:3001/sse | Server-Sent Events MCP server |
 | Streamable HTTP Server | 4001* | http://localhost:4001/mcp | HTTP streaming MCP server |
 
-*Ports are configurable via environment variables - see [Port Configuration](#port-configuration) section.
+### PostgreSQL Services (Profile: `postgres`)
+
+| Service | Default Port | URL | Description |
+|---------|--------------|-----|-------------|
+| PostgreSQL | 15432* | - | PostgreSQL 17 database server |
+| pgAdmin | 15433* | http://localhost:15433 | Web-based PostgreSQL administration |
+
+*All ports are configurable via environment variables - see [Port Configuration](#port-configuration) section.
 
 ## Compose Script Commands
 
@@ -145,14 +193,22 @@ The `compose` script provides convenient management commands with color-coded ou
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `build` | Build the MCP everything Docker image | `compose build` |
-| `up` | Start all containers with status display | `compose up` |
-| `status` | Show container status and connection URLs | `compose status` |
-| `down` | Stop containers and clean up orphans | `compose down` |
-| `clean` | Stop containers and remove volumes | `compose clean` |
-| `fix` | Detect and resolve port conflicts | `compose fix` |
-| `ports` | Show current port configuration | `compose ports` |
-| `logs` | Show container logs (all or specific service) | `compose logs mcp-inspector` |
+| `build` | Build Docker images | `compose build` or `compose build mcp` |
+| `up` | Start containers with status display | `compose up` or `compose up postgres` |
+| `status` | Show container status and connection URLs | `compose status` or `compose status mcp` |
+| `down` | Stop containers and clean up orphans | `compose down` or `compose down postgres` |
+| `clean` | Stop containers and remove volumes | `compose clean` or `compose clean mcp` |
+| `fix` | Detect and resolve port conflicts | `compose fix` or `compose fix postgres` |
+| `ports` | Show current port configuration | `compose ports` or `compose ports mcp` |
+| `logs` | Show container logs | `compose logs` or `compose logs postgres` |
+
+### Profile Support
+
+All commands support optional profiles to operate on specific services:
+
+- **`mcp`**: MCP services only (Inspector, SSE Server, Streamable Server)
+- **`postgres`**: PostgreSQL services only (PostgreSQL, pgAdmin)  
+- **`all`** or no profile: All services (default behavior)
 
 ### Usage Examples
 
