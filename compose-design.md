@@ -74,7 +74,32 @@ This document defines the design constraints for the `compose` script and associ
   ```
 - **No Script Enforcement**: The script does not validate that compose.yaml uses these environment variables correctly - convention maintainers (Persona 2) enforce this manually to keep the script simple
 
-## Constraint 4 - Profile System
+## Constraint 4 - Docker Compose File Conventions
+
+**Philosophy**: Let Docker Compose handle standard functionality automatically - only specify when you need to override defaults.
+
+### **Container Naming**
+- **❌ DON'T**: Set explicit `container_name` in services
+- **✅ DO**: Let Docker Compose auto-generate names using `<project>-<service>-<index>` pattern
+- **Rationale**: Auto-generated names prevent conflicts and work well with scaling
+- **Exception**: Only set `container_name` when external systems need a specific name
+
+### **Service Configuration Best Practices**
+- **Use environment variable defaults**: `${VAR:-default}` for all configurable values
+- **Profile requirement**: Every service MUST have explicit `profiles: [...]` set
+- **Status labels**: All services SHOULD have `status.*` labels for connection information
+- **Resource naming**: Use descriptive service names that match their function
+- **Volume naming**: Prefer named volumes over bind mounts for data persistence
+- **Network isolation**: Let Docker Compose create default networks automatically
+
+### **File Organization Conventions**
+- **Single compose.yaml**: All services in one file at repository root
+- **Profile-based docker structure**: `docker/<profile>/` directories for related files
+- **Environment precedence**: Shell → `.env.local` → `.env` → compose.yaml defaults
+
+**Note**: These are development team conventions - the compose script does NOT enforce these rules.
+
+## Constraint 5 - Profile System
 
 - Every service in the compose file is required to have a profile explicitly set
 - There are two reserved profile names by convention that must be explicitly configured in compose.yaml:
@@ -98,7 +123,7 @@ This document defines the design constraints for the `compose` script and associ
 - No profile inheritance or magic - what you see in compose.yaml is exactly what runs
 - If users type `docker compose up` directly in the root (without using the script), nothing will start because no profiles are specified - this forces them to use the script or be explicit about profiles
 
-## Constraint 5 - Service Labeling System
+## Constraint 6 - Service Labeling System
 
 - The compose script functionality is completely generic - no service-specific functions
 - Service connection info provided through labeling convention in YAML file
@@ -137,7 +162,7 @@ This document defines the design constraints for the `compose` script and associ
   ```
 - Makes the script service-agnostic while providing useful connection information
 
-## Constraint 6 - Docker Compose Wrapper Commands
+## Constraint 7 - Docker Compose Wrapper Commands
 
 - Standard docker compose commands: `up`, `down`, `ps`, `logs`, `build`
 - These do the standard docker compose operations with:
@@ -147,7 +172,7 @@ This document defines the design constraints for the `compose` script and associ
 - `compose build` command builds the images locally that have build setup configured
 - The script should be true to docker compose behavior for known commands
 
-## Constraint 7 - Custom Commands
+## Constraint 8 - Custom Commands
 
 - `clean` command has no docker compose equivalent - it stops containers and removes volumes and networks
 - `clean` follows same profile behavior as other commands:
@@ -159,7 +184,7 @@ This document defines the design constraints for the `compose` script and associ
 - `profiles` command lists all available profiles (convenience command, same category as status)
 - The reserved "all" profile works with all commands: `compose status all`, `compose clean all`, etc.
 
-## Constraint 8 - Script Behavior & Error Handling
+## Constraint 9 - Script Behavior & Error Handling
 
 - The compose script should fail fast on any errors
 - The compose script only works with compose.yaml files that follow its own conventions
@@ -174,7 +199,7 @@ This document defines the design constraints for the `compose` script and associ
 - **Common Error Troubleshooting**: Detect common development errors (like port conflicts) and provide simple troubleshooting information without complex error handling logic
 - **Scaled Container Instances Not Supported**: The script does not support scaled container instances (e.g., `docker compose up --scale service=2`) - this is an advanced feature beyond the scope of the current implementation
 
-## Constraint 9 - Common Error Troubleshooting
+## Constraint 10 - Common Error Troubleshooting
 
 While the script only validates convention violations and lets Docker Compose handle all other errors, it provides helpful troubleshooting information for common development errors that are difficult to diagnose from Docker Compose output alone.
 

@@ -50,7 +50,6 @@ services:
   postgres:
     profiles: ["db", "default", "all"]
     image: "${POSTGRES_IMAGE:-postgres:17}"
-    container_name: mcp_postgres
     environment:
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "password"
@@ -70,7 +69,6 @@ services:
   pgadmin:
     profiles: ["db", "default", "all"]
     image: "${PGADMIN_IMAGE:-dpage/pgladmin4:9.6}"
-    container_name: mcp_pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: "admin@example.com"
       PGADMIN_DEFAULT_PASSWORD: "admin"
@@ -124,7 +122,6 @@ services:
   otel-collector:
     profiles: ["observability", "all"]
     image: ${OTEL_COLLECTOR_IMAGE:-ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.125.0}
-    container_name: otel-collector
     volumes:
       - ./docker/observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
     command:
