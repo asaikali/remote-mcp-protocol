@@ -78,23 +78,10 @@ check_compose_file() {
     fi
 }
 
-check_service_profiles() {
-    local services_without_profiles
-    services_without_profiles=$(yq '.services | to_entries | map(select(.value.profiles == null)) | .[].key' compose.yaml 2>/dev/null)
-    
-    if [[ -n "$services_without_profiles" ]]; then
-        log error "Services missing explicit profiles:"
-        echo "$services_without_profiles" | while read -r service; do
-            log error "  - $service"
-        done
-        log info "All services must have explicit 'profiles: [...]' set"
-        exit 1
-    fi
-}
+# No longer needed - profile system removed
 
 validate_conventions() {
     check_compose_file
-    check_service_profiles
 }
 
 #------------------------------------------------------------------------------
@@ -113,59 +100,19 @@ load_env() {
 }
 
 #------------------------------------------------------------------------------
-# Profile Management
-#------------------------------------------------------------------------------
-get_profiles() {
-    docker compose config --profiles 2>/dev/null | sort
-}
-
-parse_profiles() {
-    local profiles=("$@")
-    
-    # If no profiles specified, use default
-    if [[ ${#profiles[@]} -eq 0 ]]; then
-        echo "default"
-        return
-    fi
-    
-    # Return specified profiles
-    local IFS=' '
-    echo "${profiles[*]}"
-}
-
-#------------------------------------------------------------------------------
 # Docker Compose Wrapper
 #------------------------------------------------------------------------------
-docker_compose_with_profiles() {
-    local cmd="$1"
-    local profiles_string="$2"
-    shift 2
-    local remaining_args=("$@")
-    
-    # Build profile arguments array
-    local profile_args=()
-    for profile in $profiles_string; do
-        profile_args+=(--profile "$profile")
-    done
-    
-    # Execute docker compose with profile arguments before command
-    docker compose "${profile_args[@]}" "$cmd" "${remaining_args[@]}"
+docker_compose() {
+    # Simple passthrough to docker compose
+    command docker compose "$@"
 }
 
 #------------------------------------------------------------------------------
 # Visual Output
 #------------------------------------------------------------------------------
-show_profile_divider() {
-    local profiles="$1"
-    local operation="${2:-Operation}"
-    
-    if [[ "$profiles" == "default" ]]; then
-        log header "$operation (default profile)"
-    elif [[ "$profiles" =~ \  ]]; then
-        log header "$operation ($profiles profiles)"
-    else
-        log header "$operation ($profiles profile)"
-    fi
+show_operation_header() {
+    local operation="$1"
+    log header "$operation"
 }
 
 #------------------------------------------------------------------------------
@@ -209,36 +156,26 @@ process_service_info_json() {
 #------------------------------------------------------------------------------
 show_usage() {
     cat << 'EOF'
-Usage: compose <command> [profiles...] [options]
+Usage: compose <command> [options]
 
 Commands:
-  up [profiles...]      Start services (detached mode)
-  down [profiles...]    Stop services
-  ps [profiles...]      Show service status
-  logs [profiles...]    Show service logs (-f for follow)
-  build [profiles...]   Build service images
-  clean [profiles...]   Stop services and remove volumes
+  up                    Start all services (detached mode)
+  down                  Stop all services
+  ps                    Show service status
+  logs                  Show service logs (-f for follow)
+  build                 Build service images
+  clean                 Stop services and remove volumes
   info                  Show connection information for all services
-  profiles              List available profiles
-
-Profiles:
-  default              Core services for daily development
-  all                  All services including observability
-  db                   Database services only
-  mcp                  MCP services only  
-  observability        Observability services only
 
 Examples:
-  compose up                    # Start default services
-  compose up all                # Start all services
-  compose up db observability   # Start specific profiles
+  compose up                    # Start all services
   compose info                  # Show all service connection information
-  compose clean all             # Remove all services and volumes
-  compose logs mcp -f           # Follow MCP service logs
+  compose clean                 # Remove all services and volumes
+  compose logs -f               # Follow all service logs
 
 Environment:
   Override defaults via .env, .env.local, or shell variables
-  Example: MCP_SSE_PORT=5001 compose up mcp
+  Example: MCP_SSE_PORT=5001 compose up
 EOF
 }
 
@@ -263,13 +200,11 @@ main() {
     
     case "$cmd" in
         up|down|ps|logs|build)
-            local profiles
-            profiles=$(parse_profiles "$@")
-            show_profile_divider "$profiles" "$(tr '[:lower:]' '[:upper:]' <<< "${cmd:0:1}")${cmd:1}"
+            show_operation_header "$(tr '[:lower:]' '[:upper:]' <<< "${cmd:0:1}")${cmd:1}"
             
             if [[ "$cmd" == "up" ]]; then
                 # Try to start services, handle port conflicts
-                if ! docker_compose_with_profiles "up" "$profiles" -d; then
+                if ! docker_compose "up" -d "$@"; then
                     log error "Failed to start services - likely port conflicts"
                     log info "Check running containers with: docker ps"
                     log info "Stop conflicting services or change ports in .env"
@@ -277,24 +212,22 @@ main() {
                 fi
                 log success "Services started successfully"
             else
-                docker_compose_with_profiles "$cmd" "$profiles"
+                docker_compose "$cmd" "$@"
             fi
             ;;
             
         clean)
-            local profiles
-            profiles=$(parse_profiles "$@")
-            show_profile_divider "$profiles" "Cleaning"
-            docker_compose_with_profiles "down" "$profiles" -v --remove-orphans
+            show_operation_header "Cleaning"
+            docker_compose "down" -v --remove-orphans
             log success "Cleanup completed"
             ;;
             
         info)
             log header "Service Connection Information"
             
-            # Get all services from all profiles using docker compose config
+            # Get all services using docker compose config
             local services_json
-            services_json=$(docker compose --profile all config --format json 2>/dev/null | jq '.services
+            services_json=$(docker compose config --format json 2>/dev/null | jq '.services
                            | to_entries
                            | map({
                                service: .key,
@@ -316,27 +249,6 @@ main() {
                 done
             else
                 log warn "No services found"
-            fi
-            ;;
-            
-        profiles)
-            log header "Available Profiles"
-            local available_profiles
-            available_profiles=$(get_profiles)
-            
-            if [[ -n "$available_profiles" ]]; then
-                echo "$available_profiles" | while read -r profile; do
-                    case "$profile" in
-                        default)      printf "  %-15s %s\n" "$profile" "Core services for daily development" ;;
-                        all)          printf "  %-15s %s\n" "$profile" "All services including observability" ;;
-                        db)           printf "  %-15s %s\n" "$profile" "Database services only" ;;
-                        mcp)          printf "  %-15s %s\n" "$profile" "MCP services only" ;;
-                        observability) printf "  %-15s %s\n" "$profile" "Observability services only" ;;
-                        *)            printf "  %-15s %s\n" "$profile" "Custom profile" ;;
-                    esac
-                done
-            else
-                log warn "No profiles found in compose.yaml"
             fi
             ;;
             

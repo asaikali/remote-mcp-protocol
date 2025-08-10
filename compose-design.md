@@ -9,15 +9,12 @@ This document defines the design constraints for the `compose` script and associ
 ### **Persona 1: Script Users (Majority of Developers)**
 - **Basic Docker Compose Knowledge**: Understand fundamental Docker Compose concepts (services, volumes, ports, environment variables)
 - **Script Conventions**: Learn the compose script conventions:
-  - `compose up` starts default development environment
-  - `compose up all` starts everything for integration testing
-  - `compose up <profiles>` starts specific service groups
-  - `compose status` shows connection information for running services
-  - Services are organized by profiles (`default`, `all`, custom profiles)
+  - `compose up` starts all services
+  - `compose info` shows connection information for all services
   - Environment configuration through `.env` and `.env.local` files
 
 ### **Persona 2: Script & Convention Maintainers (Few Developers per Team)**
-- **Advanced Docker Compose Experience**: Deep understanding of profiles, labels, environment interpolation, and compose file structure
+- **Advanced Docker Compose Experience**: Deep understanding of labels, environment interpolation, and compose file structure
 - **System Design Mindset**: Responsible for designing and maintaining the conventions, tooling, and documentation for team adoption
 - **DevOps/Platform Orientation**: Comfortable establishing development infrastructure standards and troubleshooting convention violations
 - **Script Modification**: Only this persona modifies the compose script itself or establishes new conventions
@@ -29,9 +26,9 @@ This document defines the design constraints for the `compose` script and associ
 - The compose script only works with `compose.yaml` (exact filename) and expects that file to be in the same location as the script itself. No other compose file variants are supported
 - There is only one `compose.yaml` at the root of the repo, and developers cut and paste their containers into it
 - At the same level as the compose script and compose.yaml, there is a folder called `docker`
-- **Profile-Based Directory Structure**: Under the `docker` folder, there is a directory for each profile (e.g., `db/`, `mcp/`, `observability/`)
-- **Optional Service Subdirectories**: Under each profile directory, there can be optional subdirectories for individual services (e.g., `db/postgres/`, `db/pgladmin/`)
-- **Flexible File Organization**: Service configuration files, Dockerfiles, and mount files are organized by profile, with authors of compose.yaml referencing these files as needed
+- **Service-Based Directory Structure**: Under the `docker` folder, there can be directories organized by service type (e.g., `db/`, `mcp/`, `observability/`)
+- **Optional Service Subdirectories**: Under each service type directory, there can be optional subdirectories for individual services (e.g., `db/postgres/`, `db/pgadmin/`)
+- **Flexible File Organization**: Service configuration files, Dockerfiles, and mount files are organized by service type, with authors of compose.yaml referencing these files as needed
 - **No Script Enforcement**: The compose script does not enforce this directory structure - it's a convention for developers to follow when organizing their Docker-related files
 - We follow whatever policy is set in the docker compose yaml - no restrictions on whether services pull network images or build locally
 - A service can reference an image pulled from the network, built locally, or both (developer's choice)
@@ -88,23 +85,21 @@ This document defines the design constraints for the `compose` script and associ
 ### **Service Field Ordering Convention**
 Services should follow this field order for consistency and readability:
 
-1. **`profiles`** - Service grouping (MUST be explicit for every service)
-2. **`image` / `build`** - Base image or build context (choose one, image first if not building locally)  
-3. **`depends_on`** - Service startup dependencies (startup order at a glance)
-4. **`command` / `entrypoint`** - Runtime execution overrides (if needed)
-5. **`environment`** - Configuration via environment variables 
-6. **`ports`** - Network port mappings (often reference env vars, so after environment)
-7. **`volumes`** - Data persistence and config file mounts
-8. **`networks`** - Network configuration (if custom networks needed)
-9. **`restart`** - Container restart policy
-10. **`labels`** - Metadata for tooling and status information (grouped at end)
+1. **`image` / `build`** - Base image or build context (choose one, image first if not building locally)  
+2. **`depends_on`** - Service startup dependencies (startup order at a glance)
+3. **`command` / `entrypoint`** - Runtime execution overrides (if needed)
+4. **`environment`** - Configuration via environment variables 
+5. **`ports`** - Network port mappings (often reference env vars, so after environment)
+6. **`volumes`** - Data persistence and config file mounts
+7. **`networks`** - Network configuration (if custom networks needed)
+8. **`restart`** - Container restart policy
+9. **`labels`** - Metadata for tooling and info command (grouped at end)
 
-**Rationale**: This order follows information priority - essential identity first (profiles, image), then dependencies, configuration, persistence, and finally metadata.
+**Rationale**: This order follows information priority - essential identity first (image), then dependencies, configuration, persistence, and finally metadata.
 
 ### **Service Configuration Best Practices**
 - **Use environment variable defaults**: `${VAR:-default}` for all configurable values
-- **Profile requirement**: Every service MUST have explicit `profiles: [...]` set
-- **Status labels**: All services SHOULD have `status.*` labels for connection information
+- **Info labels**: All services SHOULD have `info.*` labels for connection information
 - **Resource naming**: Use descriptive service names that match their function
 - **Volume naming**: Prefer named volumes over bind mounts for data persistence
 - **Network isolation**: Let Docker Compose create default networks automatically
@@ -120,34 +115,18 @@ Services should follow this field order for consistency and readability:
 
 ### **File Organization Conventions**
 - **Single compose.yaml**: All services in one file at repository root
-- **Profile-based docker structure**: `docker/<profile>/` directories for related files
+- **Service-based docker structure**: `docker/<service-type>/` directories for related files
 - **Environment precedence**: Shell → `.env.local` → `.env` → compose.yaml defaults
 
 **Note**: These are development team conventions - the compose script does NOT enforce these rules.
 
-## Constraint 5 - Profile System
+## Constraint 5 - Service Management
 
-- Every service in the compose file is required to have a profile explicitly set
-- There are two reserved profile names by convention that must be explicitly configured in compose.yaml:
-  - **"default"**: Must be explicitly set on services that should run in the default development environment
-  - **"all"**: Must be explicitly set on services that should run when everything is needed
-- Services are tagged with profiles explicitly in compose.yaml:
-  ```yaml
-  services:
-    db:
-      image: postgres:17
-      profiles: ["all", "default"]    # Runs in both default and all scenarios
-    cache:
-      image: redis:7
-      profiles: ["all"]               # Only runs with "compose up all"
-  ```
-- Most common services will need both profiles: `profiles: ["all", "default"]` (accepted trade-off for explicitness)
-- When you type `compose up` (or any compose command without profile specification), it runs all services with the "default" profile
-- When you type `compose up all`, it runs all services with the "all" profile
-- Space-separated profile names can be given for specific profile targeting
-- `compose up postgres mcp` means run it on postgres and mcp profiles
-- No profile inheritance or magic - what you see in compose.yaml is exactly what runs
-- If users type `docker compose up` directly in the root (without using the script), nothing will start because no profiles are specified - this forces them to use the script or be explicit about profiles
+- All services are started together with `compose up` - no selective service management
+- Developers can use standard Docker Compose commands for selective operations if needed:
+  - `docker compose up <service-name>` to start specific services
+  - `docker compose logs <service-name>` to view specific service logs
+- The compose script provides convenient wrappers for common operations across all services
 
 ## Constraint 6 - Service Labeling System
 
@@ -165,7 +144,6 @@ Services should follow this field order for consistency and readability:
   services:
     postgres:
       image: ${POSTGRES_IMAGE}
-      profiles: ["all", "default"]
       ports:
         - "${POSTGRES_PORT}:5432"
       environment:
@@ -179,8 +157,7 @@ Services should follow this field order for consistency and readability:
         - "info.cred.password=${POSTGRES_CRED_PASSWORD}"
     
     pgadmin:
-      image: dpage/pgadmin4:latest
-      profiles: ["all", "default"]
+      image: dpage/pgladmin4:latest
       ports:
         - "${PGADMIN_PORT}:80"
       labels:
@@ -194,9 +171,7 @@ Services should follow this field order for consistency and readability:
 ## Constraint 7 - Docker Compose Wrapper Commands
 
 - Standard docker compose commands: `up`, `down`, `ps`, `logs`, `build`
-- These do the standard docker compose operations with:
-  - Nicely formatted output by calling docker compose with filtering params
-  - Visual dividers showing which profile is being operated on
+- These do the standard docker compose operations with nicely formatted output
 - `compose up` should auto-build if Dockerfile exists - let docker compose handle its default build behavior
 - `compose build` command builds the images locally that have build setup configured
 - The script should be true to docker compose behavior for known commands
@@ -204,14 +179,8 @@ Services should follow this field order for consistency and readability:
 ## Constraint 8 - Custom Commands
 
 - `clean` command has no docker compose equivalent - it stops containers and removes volumes and networks
-- `clean` follows same profile behavior as other commands:
-  - `compose clean` applies to default profile only
-  - `compose clean all` applies to all profiles
-  - `compose clean postgres` applies to postgres profile only
-- **Clean command scope**: Removes volumes and networks defined in compose.yaml for the specified profile(s) - Docker Compose automatically manages which resources belong to the project
+- **Clean command scope**: Removes all volumes and networks defined in compose.yaml - Docker Compose automatically manages which resources belong to the project
 - `info` command prints out all key connection information developers need to connect to services from their apps or access them via UI (uses the `info.*` label system)
-- `profiles` command lists all available profiles (convenience command, same category as info)
-- The reserved "all" profile works with all commands: `compose info all`, `compose clean all`, etc.
 
 ## Constraint 9 - Script Behavior & Error Handling
 
@@ -219,7 +188,6 @@ Services should follow this field order for consistency and readability:
 - The compose script only works with compose.yaml files that follow its own conventions
 - Script should fail early if any of its conventions are violated:
   - Complain if `compose.yaml` is not found (only supported filename) - convention violation  
-  - Complain if any services don't have profiles set (convention violation)
   - Note: `.env` file is optional - script loads it if present but doesn't require it
 - For non-convention errors, let docker compose handle validation and show its error messages
 - Keep the script simple: if docker compose supports features like `--env-file` for overrides, use those docker compose features rather than adding complexity to the script
@@ -272,16 +240,6 @@ These constraints define a simple, convention-based system that:
 3. **Maintains simplicity** - Leverages docker compose features rather than reimplementing
 4. **Enables generic functionality** - Service-agnostic through labeling conventions
 5. **Provides developer experience** - Clear error messages and helpful commands
-6. **Ensures predictability** - Explicit profiles and fail-fast behavior
-7. **Prioritizes explicitness over convenience** - Accepts repetitive YAML (`profiles: ["all", "default"]`) to avoid complex script logic
+6. **Ensures predictability** - Fail-fast behavior and consistent conventions
+7. **Prioritizes simplicity** - All services start together, no complex selection logic
 
-## Profile Configuration Philosophy
-
-The system chooses **explicit over magic**:
-- ✅ **Explicit**: Every service clearly shows which profiles it belongs to
-- ✅ **Predictable**: What you see in compose.yaml is exactly what runs  
-- ✅ **Simple Script**: No complex inheritance or profile logic in bash
-- ❌ **Repetitive**: Most services need `profiles: ["all", "default"]`
-- ❌ **Verbose**: More YAML to write
-
-This trade-off keeps the script simple and maintainable while making service behavior completely transparent to developers.

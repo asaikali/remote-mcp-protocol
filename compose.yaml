@@ -7,24 +7,22 @@
 # script, which provides simplified commands and enhanced functionality.
 #
 # WHY FOLLOW THESE CONVENTIONS:
-#   - The `compose` script validates that services have explicit profiles
-#   - Status labels enable `compose status` to show connection information
+#   - Info labels enable `compose info` to show connection information
 #   - Environment variable patterns allow easy override via .env files
-#   - Profile system enables `compose up`, `compose up all`, `compose up db` etc.
+#   - `compose up` starts all services for complete development environment
 #   - Consistent field ordering makes the file easier to scan and maintain
 #   - Following conventions ensures the wrapper script works correctly
 #
 # SERVICE FIELD ORDER (follow this sequence for all services):
-#   1. profiles      - Service grouping (MUST be explicit for every service)
-#   2. image/build   - Base image or build context
-#   3. depends_on    - Service startup dependencies (if needed)
-#   4. command/entrypoint - Runtime execution overrides (if needed)
-#   5. environment   - Configuration via environment variables
-#   6. ports         - Network port mappings (often reference env vars)
-#   7. volumes       - Data persistence and config file mounts
-#   8. networks      - Network configuration (if custom networks needed)
-#   9. restart       - Container restart policy
-#   10. labels       - Metadata for tooling and status information
+#   1. image/build   - Base image or build context
+#   2. depends_on    - Service startup dependencies (if needed)
+#   3. command/entrypoint - Runtime execution overrides (if needed)
+#   4. environment   - Configuration via environment variables
+#   5. ports         - Network port mappings (often reference env vars)
+#   6. volumes       - Data persistence and config file mounts
+#   7. networks      - Network configuration (if custom networks needed)
+#   8. restart       - Container restart policy
+#   9. labels        - Metadata for tooling and info command
 #
 # ENVIRONMENT VARIABLES:
 #   - All configurable values use ${VAR:-default} syntax
@@ -33,13 +31,12 @@
 #   - Credential variables: <SERVICE>_CRED_<TYPE> (e.g., PG_CRED_USERNAME)
 #   - Override via .env, .env.local, or shell environment
 #
-# PROFILE SYSTEM:
-#   - Every service MUST have explicit profiles set
-#   - "default": Services for daily development (core services needed for development)
-#   - "all": All services including observability stack
-#   - "db": Database services (postgres, pgadmin, redis, etc.)
-#   - "observability": Observability services (grafana, prometheus, loki, tempo, otel-collector)
-#   - Custom profiles: Add project-specific profiles as needed (api, frontend, cache, etc.)
+# SERVICE ORGANIZATION:
+#   - All services start together with `compose up`
+#   - Services are organized into logical groups in the file for readability
+#   - "MCP Services": Model Context Protocol servers and tools
+#   - "Database Services": PostgreSQL and administration tools
+#   - "Observability Services": Monitoring, logging, and tracing stack
 #
 # RESTART POLICY:
 #   - Use "restart: unless-stopped" for all services (infrastructure approach)
@@ -62,21 +59,20 @@
 #   - Example: compose info → shows ✓ PostgreSQL Database (from info.title)
 #
 # QUICK REFERENCE - Docker Compose Commands (copy/paste ready):
-#   Start all services:    docker compose --profile all up --detach
-#   Stop all services:     docker compose --profile all down
-#   Clean everything:      docker compose --profile all down --volumes  --remove-orphans
-#   Show status:           docker compose --profile all ps
-#   View logs:             docker compose --profile all logs -f
-#   Restart services:      docker compose --profile all restart
+#   Start all services:    docker compose up --detach
+#   Stop all services:     docker compose down
+#   Clean everything:      docker compose down --volumes --remove-orphans
+#   Show status:           docker compose ps
+#   View logs:             docker compose logs -f
+#   Restart services:      docker compose restart
 #
 # =============================================================================
 
 services:
   # ==========================================================================
-  # MCP Services Profile
+  # MCP Services
   # ==========================================================================
   everything-sse:
-    profiles: ["mcp", "default", "all"]
     build:
       context: ./docker/mcp
       dockerfile: Dockerfile
@@ -91,7 +87,6 @@ services:
       - "info.url.inspector=everything-sse:3001"
 
   everything-streamable:
-    profiles: ["mcp", "default", "all"]
     build:
       context: ./docker/mcp
       dockerfile: Dockerfile
@@ -106,7 +101,6 @@ services:
       - "info.url.inspector=everything-streamable:3001"
 
   mcp-inspector:
-    profiles: ["mcp", "default", "all"]
     build:
       context: ./docker/mcp
       dockerfile: Dockerfile
@@ -122,10 +116,9 @@ services:
       - "info.url.websocket=ws://localhost:${MCP_INSPECTOR_WS_PORT:-6277}"
 
   # ==========================================================================
-  # Database Services Profile
+  # Database Services
   # ==========================================================================
   postgres:
-    profiles: ["db", "default", "all"]
     image: "${POSTGRES_IMAGE:-postgres:17}"
     environment:
       POSTGRES_USER: "postgres"
@@ -145,7 +138,6 @@ services:
       - "info.cred.password=password"
 
   pgadmin:
-    profiles: ["db", "default", "all"]
     image: "${PGADMIN_IMAGE:-dpage/pgadmin4:9.6}"
     depends_on:
       - postgres
@@ -171,10 +163,9 @@ services:
       - "info.cred.password=admin"
 
   # ==========================================================================
-  # Observability Services Profile
+  # Observability Services
   # ==========================================================================
   loki:
-    profiles: ["observability", "all"]
     image: "${LOKI_IMAGE:-grafana/loki:3.5.0}"
     command:
       - -config.file=/etc/loki/local-config.yaml
@@ -189,7 +180,6 @@ services:
       - "info.url.api=http://localhost:${LOKI_PORT:-3100}"
 
   tempo:
-    profiles: ["observability", "all"]
     image: "${TEMPO_IMAGE:-grafana/tempo:2.7.2}"
     command:
       - -config.file=/etc/tempo.yaml
@@ -205,7 +195,6 @@ services:
       - "info.url.zipkin=http://localhost:${TEMPO_ZIPKIN_PORT:-9411}"
 
   otel-collector:
-    profiles: ["observability", "all"]
     image: "${OTEL_COLLECTOR_IMAGE:-ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.125.0}"
     depends_on:
       - tempo
@@ -225,7 +214,6 @@ services:
       - "info.url.http=http://localhost:${OTEL_COLLECTOR_HTTP_PORT:-4318}"
 
   prometheus:
-    profiles: ["observability", "all"]
     image: "${PROMETHEUS_IMAGE:-prom/prometheus:v3.3.1}"
     command:
       - --enable-feature=exemplar-storage
@@ -245,7 +233,6 @@ services:
       - "info.url.api=http://localhost:${PROMETHEUS_PORT:-9090}/api/v1"
 
   grafana:
-    profiles: ["observability", "all"]
     image: "${GRAFANA_IMAGE:-grafana/grafana:12.0.0}"
     depends_on:
       - otel-collector
