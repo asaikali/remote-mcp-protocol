@@ -168,6 +168,7 @@ This document defines the design constraints for the `compose` script and associ
 - No assumptions about Docker Compose version requirements
 - For the `status` command, print any labels that are prefixed with `status.*` to keep the script simple
 - **Common Error Troubleshooting**: Detect common development errors (like port conflicts) and provide simple troubleshooting information without complex error handling logic
+- **Scaled Container Instances Not Supported**: The script does not support scaled container instances (e.g., `docker compose up --scale service=2`) - this is an advanced feature beyond the scope of the current implementation
 
 ## Constraint 9 - Common Error Troubleshooting
 

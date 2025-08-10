@@ -85,10 +85,36 @@ Each command should:
   - `status.cred.*` - Credential information
 
 ### 3.2 Status Display
-- Extract `status.*` labels from running containers
-- Display connection information grouped by service
-- Simple formatting - no complex output
-- Show only information for services in specified profiles
+**`extract_status_labels()` implementation**:
+```bash
+extract_status_labels() {
+  local profile="$1"
+  # Get all running containers for the specified profile
+  local containers=$(docker_compose "$profile" ps -q)
+  
+  for container in $containers; do
+    # Extract all labels from the container
+    local labels=$(docker inspect "$container" --format '{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}')
+    
+    # Filter for status.* labels only
+    local status_labels=$(echo "$labels" | grep '^status\.')
+    
+    if [[ -n "$status_labels" ]]; then
+      local container_name=$(docker inspect "$container" --format '{{.Name}}' | sed 's/^.//')
+      echo "Container: $container_name"
+      echo "$status_labels"
+      echo
+    fi
+  done
+}
+```
+
+**Status Command Behavior**:
+- Get all running containers for specified profile
+- Use `docker inspect` to extract labels from each container
+- Filter for `status.*` labels only (ignore Docker's own labels)
+- Display status info per container individually
+- **No scaled container support**: Script assumes 1 container per service (scaling not supported)
 
 ## Phase 4: Error Handling & Validation
 
@@ -137,35 +163,28 @@ validate_conventions() {
 **`detect_port_conflicts()` (for `up` command)**:
 ```bash
 detect_port_conflicts() {
-  local profile="$1"
-  # Get ports that should be used by this profile
-  local profile_ports=($(get_profile_ports "$profile"))
+  # Simple approach: check all running containers for port conflicts
+  # Don't need to know which specific ports the profile was trying to use
   
-  for port in "${profile_ports[@]}"; do
-    local container=$(docker ps --filter "publish=$port" --format "{{.Names}}" | head -n1)
-    if [[ -n "$container" ]]; then
-      # Get compose project directory from container labels
+  local containers_with_ports=$(docker ps --format "table {{.Names}}\t{{.Ports}}" | tail -n +2)
+  
+  if [[ -n "$containers_with_ports" ]]; then
+    log error "Port conflicts detected with running containers:"
+    echo "$containers_with_ports"
+    echo
+    
+    # Show project directories for conflicting containers
+    docker ps --format "{{.Names}}" | while read container; do
       local project_dir=$(docker inspect "$container" -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)
       
-      log error "Port $port is used by container: $container"
       if [[ -n "$project_dir" ]]; then
-        log info "Project directory: $project_dir"
+        log info "Container: $container (Project: $project_dir)"
         log info "Stop it with: cd $project_dir && docker compose down"
       else
-        log info "Stop it with: docker stop $container"
+        log info "Container: $container (Stop with: docker stop $container)"
       fi
-    fi
-  done
-}
-```
-
-**`get_profile_ports()` helper**:
-```bash
-get_profile_ports() {
-  local profile="$1"
-  # Extract port mappings from compose.yaml for specified profile
-  # Implementation: parse compose config output for services with specified profile
-  docker compose config --profile "$profile" | yq '.services.*.ports[]' | grep -o '[0-9]*:' | cut -d: -f1
+    done
+  fi
 }
 ```
 
@@ -208,7 +227,6 @@ docker_compose_with_profiles()
 
 # Common error troubleshooting
 detect_port_conflicts()    # Check for port conflicts and show project directories
-get_profile_ports()        # Extract port mappings for a profile
 
 # Status/label handling
 extract_status_labels()    # Pull status.* labels from running containers
