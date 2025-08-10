@@ -24,6 +24,7 @@ This document defines the design constraints for the `compose` script and associ
 
 ## Constraint 1 - File Structure & Dependencies
 
+- **Required Dependencies**: The compose script requires `docker`, `yq`, and `jq` to be installed and available in PATH
 - There is only one script called `compose` at the root of the repo
 - The compose script only works with `compose.yaml` (exact filename) and expects that file to be in the same location as the script itself. No other compose file variants are supported
 - There is only one `compose.yaml` at the root of the repo, and developers cut and paste their containers into it

@@ -64,6 +64,7 @@ require_cmd() {
 check_dependencies() {
     require_cmd docker
     require_cmd yq
+    require_cmd jq
 }
 
 #------------------------------------------------------------------------------
