@@ -6,7 +6,7 @@ services:
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "sse"]
     ports:
-      - "3001:3001"  # SSE server on standard port
+      - "${MCP_SSE_PORT:-3001}:3001"  # SSE server, configurable via MCP_SSE_PORT
 
   everything-streamable:
     build:
@@ -15,7 +15,7 @@ services:
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "streamableHttp"]
     ports:
-      - "4001:3001"  # Streamable HTTP server on port 4001
+      - "${MCP_STREAMABLE_PORT:-4001}:3001"  # Streamable HTTP server, configurable via MCP_STREAMABLE_PORT
 
   mcp-inspector:
     build:
@@ -24,7 +24,7 @@ services:
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "inspector"]
     ports:
-      - "6274:6274"  # Inspector GUI on standard port
-      - "6277:6277"  # Inspector websocket port
+      - "${MCP_INSPECTOR_PORT:-6274}:6274"  # Inspector GUI, configurable via MCP_INSPECTOR_PORT
+      - "${MCP_INSPECTOR_WS_PORT:-6277}:6277"  # Inspector WebSocket, configurable via MCP_INSPECTOR_WS_PORT
 
 

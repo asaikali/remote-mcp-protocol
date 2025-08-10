@@ -30,6 +30,51 @@ compose stop
 
 **Note**: If you have [direnv](https://direnv.net) installed and run `direnv allow`, the compose script will be available in your PATH from anywhere within the repository.
 
+## Port Configuration
+
+The MCP stack uses configurable ports via environment variables. Default ports:
+
+- **SSE Server**: 3001
+- **Streamable HTTP Server**: 4001  
+- **Inspector GUI**: 6274
+- **Inspector WebSocket**: 6277
+
+### Configuring Ports
+
+**Option 1: Edit .env file (Recommended)**
+```bash
+# Edit the .env file in the project root
+vim .env
+
+# Modify port values:
+MCP_SSE_PORT=5001
+MCP_STREAMABLE_PORT=5002
+MCP_INSPECTOR_PORT=5274
+MCP_INSPECTOR_WS_PORT=5277
+```
+
+**Option 2: Environment variables**
+```bash
+# Set environment variables
+export MCP_SSE_PORT=5001
+export MCP_STREAMABLE_PORT=5002
+
+# Then run compose
+compose up
+```
+
+**Option 3: Inline with commands**
+```bash
+# Override ports for a single run
+MCP_SSE_PORT=5001 MCP_STREAMABLE_PORT=5002 compose up
+```
+
+### Check Current Port Configuration
+```bash
+# Show current port configuration
+compose ports
+```
+
 ### Method 2: Direct Docker Commands
 
 ```bash
@@ -71,12 +116,14 @@ When the inspector (running inside Docker) tries to connect to `http://localhost
 
 ## Available Services
 
-| Service | Port | URL | Description |
-|---------|------|-----|-------------|
-| Inspector GUI | 6274 | http://localhost:6274 | Web interface for inspecting MCP servers |
-| Inspector WebSocket | 6277 | - | WebSocket proxy for the inspector |
-| SSE Server | 3001 | http://localhost:3001/sse | Server-Sent Events MCP server |
-| Streamable HTTP Server | 4001 | http://localhost:4001/mcp | HTTP streaming MCP server |
+| Service | Default Port | URL | Description |
+|---------|--------------|-----|-------------|
+| Inspector GUI | 6274* | http://localhost:6274 | Web interface for inspecting MCP servers |
+| Inspector WebSocket | 6277* | - | WebSocket proxy for the inspector |
+| SSE Server | 3001* | http://localhost:3001/sse | Server-Sent Events MCP server |
+| Streamable HTTP Server | 4001* | http://localhost:4001/mcp | HTTP streaming MCP server |
+
+*Ports are configurable via environment variables - see [Port Configuration](#port-configuration) section.
 
 ## Compose Script Commands
 
@@ -87,11 +134,12 @@ The `compose` script provides convenient management commands with color-coded ou
 | Command | Description | Example |
 |---------|-------------|---------|
 | `build` | Build the MCP everything Docker image | `compose build` |
-| `start` | Start all containers with status display | `compose start` |
+| `up` | Start all containers with status display | `compose up` |
 | `status` | Show container status and connection URLs | `compose status` |
-| `stop` | Stop containers and clean up orphans | `compose stop` |
+| `down` | Stop containers and clean up orphans | `compose down` |
 | `clean` | Stop containers and remove volumes | `compose clean` |
 | `fix` | Detect and resolve port conflicts | `compose fix` |
+| `ports` | Show current port configuration | `compose ports` |
 | `logs` | Show container logs (all or specific service) | `compose logs mcp-inspector` |
 
 ### Usage Examples
@@ -99,10 +147,13 @@ The `compose` script provides convenient management commands with color-coded ou
 ```bash
 # Build and start everything
 compose build
-compose start
+compose up
 
 # Check what's running and get connection URLs
 compose status
+
+# Check current port configuration
+compose ports
 
 # View logs from all containers
 compose logs
@@ -114,7 +165,7 @@ compose logs mcp-inspector --tail 50
 compose fix
 
 # Clean shutdown
-compose stop
+compose down
 ```
 
 ### Features

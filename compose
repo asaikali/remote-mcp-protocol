@@ -185,8 +185,8 @@ show_connections() {
   # Check if MCP Inspector container is running
   if docker_compose ps --services --filter status=running | grep -q mcp-inspector; then
     # Display Inspector GUI URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Inspector GUI" "http://localhost:6274"
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Inspector Proxy" "WebSocket on :6277"
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Inspector GUI" "http://localhost:$MCP_INSPECTOR_PORT"
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Inspector Proxy" "WebSocket on :$MCP_INSPECTOR_WS_PORT"
   else
     # Display warning if Inspector is not running
     log warn "MCP Inspector not running"
@@ -195,7 +195,7 @@ show_connections() {
   # Check if SSE server container is running
   if docker_compose ps --services --filter status=running | grep -q everything-sse; then
     # Display SSE server URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "SSE Server" "http://localhost:3001/sse"
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "SSE Server" "http://localhost:$MCP_SSE_PORT/sse"
     printf "${GREEN}  ${pad}  ${NC}  ${YELLOW}Inspector URL${NC}: everything-sse:3001\n" ""
   else
     # Display warning if SSE server is not running
@@ -205,7 +205,7 @@ show_connections() {
   # Check if Streamable HTTP server container is running
   if docker_compose ps --services --filter status=running | grep -q everything-streamable; then
     # Display Streamable server URL with a green checkmark
-    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Streamable Server" "http://localhost:4001/mcp"
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Streamable Server" "http://localhost:$MCP_STREAMABLE_PORT/mcp"
     printf "${GREEN}  ${pad}  ${NC}  ${YELLOW}Inspector URL${NC}: everything-streamable:3001\n" ""
   else
     # Display warning if Streamable server is not running
@@ -254,6 +254,7 @@ usage() {
   printf "  ${YELLOW}down${NC}          Stop containers\n"
   printf "  ${RED}clean${NC}         Stop containers & remove volumes\n"
   printf "  ${YELLOW}fix${NC}           Detect & fix port conflicts\n"
+  printf "  ${BLUE}ports${NC}         Show current port configuration\n"
   printf "  ${BLUE}logs${NC}          Show container logs (optionally specify service)\n"
   printf "\nExamples:\n"
   printf "  ./compose build\n"
@@ -276,13 +277,39 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # Exit with error if no compose file is found
 COMPOSE_FILE="$(find_compose_file "$SCRIPT_DIR")" || { log error "No compose file in $SCRIPT_DIR"; exit 1; }
 
-# Define ports used by the MCP stack services
-readonly PORTS=(
-  "3001"  # SSE Server
-  "4001"  # Streamable HTTP Server
-  "6274"  # MCP Inspector GUI
-  "6277"  # MCP Inspector WebSocket
-)
+# Load port configuration from environment variables or use defaults
+setup_ports() {
+  # Source .env file if it exists (Docker Compose will also use it)
+  if [[ -f "$SCRIPT_DIR/.env" ]]; then
+    # Only export variables that aren't already set
+    while IFS='=' read -r key value; do
+      # Skip comments and empty lines
+      [[ $key =~ ^[[:space:]]*# ]] && continue
+      [[ -z $key ]] && continue
+      # Export if not already set (check if variable exists)
+      if [[ -z ${!key:-} ]]; then
+        export "$key=$value"
+      fi
+    done < "$SCRIPT_DIR/.env"
+  fi
+  
+  # Set defaults for any variables still not set
+  export MCP_SSE_PORT=${MCP_SSE_PORT:-3001}
+  export MCP_STREAMABLE_PORT=${MCP_STREAMABLE_PORT:-4001}
+  export MCP_INSPECTOR_PORT=${MCP_INSPECTOR_PORT:-6274}
+  export MCP_INSPECTOR_WS_PORT=${MCP_INSPECTOR_WS_PORT:-6277}
+  
+  # Define ports array with current values
+  PORTS=(
+    "$MCP_SSE_PORT"         # SSE Server
+    "$MCP_STREAMABLE_PORT"  # Streamable HTTP Server
+    "$MCP_INSPECTOR_PORT"   # MCP Inspector GUI
+    "$MCP_INSPECTOR_WS_PORT" # MCP Inspector WebSocket
+  )
+}
+
+# Call setup_ports to initialize
+setup_ports
 
 #------------------------------------------------------------------------------
 # Main command handler
@@ -343,6 +370,20 @@ case $cmd in
         shutdown_conflict "$c"
       fi
     done
+    ;;
+
+  # Ports command: Show current port configuration
+  ports)
+    log header "Port Configuration"
+    printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "SSE Server" "$MCP_SSE_PORT"
+    printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Streamable HTTP Server" "$MCP_STREAMABLE_PORT"
+    printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector GUI" "$MCP_INSPECTOR_PORT"
+    printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector WebSocket" "$MCP_INSPECTOR_WS_PORT"
+    echo
+    log info "To change ports, modify the .env file or set environment variables:"
+    log info "→ Edit .env file in the project root"
+    log info "→ Or set: export MCP_SSE_PORT=5001"
+    log info "→ Or run: MCP_SSE_PORT=5001 ./compose up"
     ;;
 
   # Logs command: Show container logs
