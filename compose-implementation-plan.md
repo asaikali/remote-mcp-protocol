@@ -67,6 +67,7 @@ Each command should:
 - Parse profiles (default to "default" profile, "all" is treated as a regular profile)
 - Add visual dividers showing which profile is being operated on
 - Call `docker compose` with appropriate `--profile` flags
+- **For `up` command**: Add port conflict detection if docker compose fails
 
 ### 2.2 Custom Commands
 - `clean [profiles...]` - Remove volumes and networks for specified profiles
@@ -132,14 +133,52 @@ validate_conventions() {
 - Pass through docker compose error messages without modification
 - Maintain fail-fast behavior throughout
 
-### 4.3 Error Categories
+### 4.3 Common Error Troubleshooting
+**`detect_port_conflicts()` (for `up` command)**:
+```bash
+detect_port_conflicts() {
+  local profile="$1"
+  # Get ports that should be used by this profile
+  local profile_ports=($(get_profile_ports "$profile"))
+  
+  for port in "${profile_ports[@]}"; do
+    local container=$(docker ps --filter "publish=$port" --format "{{.Names}}" | head -n1)
+    if [[ -n "$container" ]]; then
+      # Get compose project directory from container labels
+      local project_dir=$(docker inspect "$container" -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' 2>/dev/null || true)
+      
+      log error "Port $port is used by container: $container"
+      if [[ -n "$project_dir" ]]; then
+        log info "Project directory: $project_dir"
+        log info "Stop it with: cd $project_dir && docker compose down"
+      else
+        log info "Stop it with: docker stop $container"
+      fi
+    fi
+  done
+}
+```
+
+**`get_profile_ports()` helper**:
+```bash
+get_profile_ports() {
+  local profile="$1"
+  # Extract port mappings from compose.yaml for specified profile
+  # Implementation: parse compose config output for services with specified profile
+  docker compose config --profile "$profile" | yq '.services.*.ports[]' | grep -o '[0-9]*:' | cut -d: -f1
+}
+```
+
+### 4.4 Error Categories
 **Convention Violations (Script handles)**:
 - Missing `compose.yaml` file
 - Missing `.env` file  
 - Services without profiles
-- Wrong compose file variants (docker-compose.yaml, etc.)
 
-**Docker Compose Violations (Let docker compose handle)**:
+**Common Development Errors (Script provides troubleshooting)**:
+- Port conflicts (show conflicting container and project directory)
+
+**Docker Compose Errors (Let docker compose handle)**:
 - Invalid profile names
 - Missing environment variables
 - Invalid Docker images
@@ -167,6 +206,10 @@ build_profile_args()       # Build --profile flags for docker compose
 # Docker compose wrapper
 docker_compose_with_profiles()
 
+# Common error troubleshooting
+detect_port_conflicts()    # Check for port conflicts and show project directories
+get_profile_ports()        # Extract port mappings for a profile
+
 # Status/label handling
 extract_status_labels()    # Pull status.* labels from running containers
 format_status_output()     # Format connection info nicely
@@ -179,10 +222,23 @@ show_profile_divider()     # Visual separator for profile operations
 ### Command Structure:
 ```bash
 case $cmd in
-  up|down|ps|logs|build)
+  up)
     validate_conventions
     load_env
-    profiles=$(parse_profiles "$@")           # Handle "default", "all", specific profiles
+    profiles=$(parse_profiles "$@")
+    show_profile_divider "$profiles"
+    
+    # Try to start services
+    if ! docker_compose_with_profiles "$cmd" "$profiles" "${remaining_args[@]}"; then
+      # If failed, check for port conflicts
+      detect_port_conflicts "$profiles"
+      exit 1
+    fi
+    ;;
+  down|ps|logs|build)
+    validate_conventions
+    load_env
+    profiles=$(parse_profiles "$@")
     show_profile_divider "$profiles"
     docker_compose_with_profiles "$cmd" "$profiles" "${remaining_args[@]}"
     ;;

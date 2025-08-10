@@ -123,6 +123,37 @@ This document defines the design constraints for the `compose` script and associ
 - Keep the script simple: if docker compose supports features like `--env-file` for overrides, use those docker compose features rather than adding complexity to the script
 - No assumptions about Docker Compose version requirements
 - For the `status` command, print any labels that are prefixed with `status.*` to keep the script simple
+- **Common Error Troubleshooting**: Detect common development errors (like port conflicts) and provide simple troubleshooting information without complex error handling logic
+
+## Constraint 9 - Common Error Troubleshooting
+
+While the script only validates convention violations and lets Docker Compose handle all other errors, it provides helpful troubleshooting information for common development errors that are difficult to diagnose from Docker Compose output alone.
+
+**Common Errors We Help With:**
+- **Port Conflicts**: When `docker compose up` fails due to port already in use
+  - Detect which container is using the conflicting port
+  - Show the Docker Compose project directory of the conflicting container
+  - Provide exact command to stop the conflicting service
+  - Example output:
+    ```
+    ✗ Port 5432 is used by container: other_project_postgres
+    > Project directory: /Users/dev/other-project  
+    > Stop it with: cd /Users/dev/other-project && docker compose down
+    ```
+
+**What We Don't Handle:**
+- Image pull failures
+- Network connectivity issues  
+- Volume mount problems
+- Service dependency failures
+- Invalid YAML syntax
+- Missing environment variables
+
+**Implementation Approach:**
+- Check for common error patterns in docker compose output
+- Extract helpful diagnostic information (container names, project directories)
+- Display simple, actionable troubleshooting steps
+- Keep logic minimal - just pattern matching and information extraction
 
 ## Summary
 
