@@ -62,7 +62,9 @@
 # =============================================================================
 
 services:
-  # MCP Services
+  # ==========================================================================
+  # MCP Services Profile
+  # ==========================================================================
   everything-sse:
     profiles: ["mcp", "default", "all"]
     build:
@@ -106,7 +108,9 @@ services:
       - "status.url.ui=http://localhost:${MCP_INSPECTOR_PORT:-6274}"
       - "status.url.websocket=ws://localhost:${MCP_INSPECTOR_WS_PORT:-6277}"
 
-  # Database Services
+  # ==========================================================================
+  # Database Services Profile
+  # ==========================================================================
   postgres:
     profiles: ["db", "default", "all"]
     image: "${POSTGRES_IMAGE:-postgres:17}"
@@ -151,7 +155,9 @@ services:
       - "status.cred.username=admin@example.com"
       - "status.cred.password=admin"
 
-  # Observability Services
+  # ==========================================================================
+  # Observability Services Profile
+  # ==========================================================================
   loki:
     profiles: ["observability", "all"]
     image: "${LOKI_IMAGE:-grafana/loki:3.5.0}"
@@ -234,7 +240,9 @@ services:
       - "status.url.ui=http://localhost:${GRAFANA_PORT:-3000}"
       - "status.cred.anonymous=enabled (admin access)"
 
+# =============================================================================
 # Top-level volumes declared at end for visibility
+# =============================================================================
 volumes:
   postgres:
   pgadmin:
