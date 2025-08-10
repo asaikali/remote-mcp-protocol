@@ -19,7 +19,15 @@ This document defines the design constraints for the `compose` script and associ
 - There is an `.env` file at the root storing configuration for services
 - Devs can create/edit `.env.local` which is in `.gitignore` to override settings from `.env`
 - Precedence: shell environment > `.env.local` > `.env`
-- The script always loads `.env` and lets `.env.local` override/win
+- The script loads environment files using shell `source` with `set -a` (auto-export):
+  ```bash
+  set -a                    # auto-export variables
+  source .env              # load defaults
+  source .env.local        # load overrides (if exists)
+  set +a                   # stop auto-export
+  ```
+- This approach leverages Docker Compose's built-in environment handling rather than custom parsing
+- Variables are exported to the shell environment so Docker Compose picks them up automatically
 
 ## Constraint 3 - Environment Naming Conventions
 
