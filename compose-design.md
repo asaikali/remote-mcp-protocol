@@ -38,18 +38,19 @@ This document defines the design constraints for the `compose` script and associ
 
 ## Constraint 2 - Environment Loading
 
-- There is an `.env` file at the root storing configuration for services
-- Devs can create/edit `.env.local` which is in `.gitignore` to override settings from `.env`
-- Precedence: shell environment > `.env.local` > `.env`
+- `.env` file is **optional** - compose.yaml has sensible defaults built-in using `${VAR:-default}` syntax
+- Devs can create `.env` to override defaults, and `.env.local` (in `.gitignore`) for personal overrides
+- Precedence: shell environment > `.env.local` > `.env` > compose.yaml defaults
 - The script loads environment files using shell `source` with `set -a` (auto-export):
   ```bash
   set -a                    # auto-export variables
-  source .env              # load defaults
-  source .env.local        # load overrides (if exists)
+  [[ -f .env ]] && source .env              # load defaults (if exists)
+  [[ -f .env.local ]] && source .env.local  # load overrides (if exists)
   set +a                   # stop auto-export
   ```
-- This approach leverages Docker Compose's built-in environment handling rather than custom parsing
+- This approach leverages Docker Compose's built-in environment handling and default value syntax
 - Variables are exported to the shell environment so Docker Compose picks them up automatically
+- **Simple Onboarding**: `git clone && docker compose up` works immediately without requiring .env setup
 
 ## Constraint 3 - Environment Naming Conventions
 
@@ -162,9 +163,9 @@ This document defines the design constraints for the `compose` script and associ
 - The compose script should fail fast on any errors
 - The compose script only works with compose.yaml files that follow its own conventions
 - Script should fail early if any of its conventions are violated:
-  - Complain if `compose.yaml` is not found (only supported filename) - convention violation
-  - Complain if `.env` file is not found - required by convention, same as missing compose.yaml
+  - Complain if `compose.yaml` is not found (only supported filename) - convention violation  
   - Complain if any services don't have profiles set (convention violation)
+  - Note: `.env` file is optional - script loads it if present but doesn't require it
 - For non-convention errors, let docker compose handle validation and show its error messages
 - Keep the script simple: if docker compose supports features like `--env-file` for overrides, use those docker compose features rather than adding complexity to the script
 - No assumptions about Docker Compose version requirements

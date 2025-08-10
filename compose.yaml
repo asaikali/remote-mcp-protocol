@@ -14,9 +14,9 @@ services:
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "sse"]
     ports:
-      - "${MCP_SSE_PORT}:3001"  # SSE server, configurable via MCP_SSE_PORT
+      - "${MCP_SSE_PORT:-3001}:3001"  # SSE server, configurable via MCP_SSE_PORT
     labels:
-      - "status.url.sse=http://localhost:${MCP_SSE_PORT}/sse"
+      - "status.url.sse=http://localhost:${MCP_SSE_PORT:-3001}/sse"
       - "status.url.inspector=everything-sse:3001"
 
   everything-streamable:
@@ -27,9 +27,9 @@ services:
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "streamableHttp"]
     ports:
-      - "${MCP_STREAMABLE_PORT}:3001"  # Streamable HTTP server, configurable via MCP_STREAMABLE_PORT
+      - "${MCP_STREAMABLE_PORT:-4001}:3001"  # Streamable HTTP server, configurable via MCP_STREAMABLE_PORT
     labels:
-      - "status.url.streamable=http://localhost:${MCP_STREAMABLE_PORT}/mcp"
+      - "status.url.streamable=http://localhost:${MCP_STREAMABLE_PORT:-4001}/mcp"
       - "status.url.inspector=everything-streamable:3001"
 
   mcp-inspector:
@@ -40,11 +40,11 @@ services:
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "inspector"]
     ports:
-      - "${MCP_INSPECTOR_PORT}:6274"  # Inspector GUI, configurable via MCP_INSPECTOR_PORT
-      - "${MCP_INSPECTOR_WS_PORT}:6277"  # Inspector WebSocket, configurable via MCP_INSPECTOR_WS_PORT
+      - "${MCP_INSPECTOR_PORT:-6274}:6274"  # Inspector GUI, configurable via MCP_INSPECTOR_PORT
+      - "${MCP_INSPECTOR_WS_PORT:-6277}:6277"  # Inspector WebSocket, configurable via MCP_INSPECTOR_WS_PORT
     labels:
-      - "status.url.ui=http://localhost:${MCP_INSPECTOR_PORT}"
-      - "status.url.websocket=ws://localhost:${MCP_INSPECTOR_WS_PORT}"
+      - "status.url.ui=http://localhost:${MCP_INSPECTOR_PORT:-6274}"
+      - "status.url.websocket=ws://localhost:${MCP_INSPECTOR_WS_PORT:-6277}"
 
   # PostgreSQL Services
   postgres:
@@ -57,13 +57,13 @@ services:
       PGDATA: "/data/postgres"
     volumes:
       - postgres:/data/postgres
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "${PG_PORT}:5432"  # PostgreSQL port, configurable via PG_PORT
+      - "${PG_PORT:-15432}:5432"  # PostgreSQL port, configurable via PG_PORT
     restart: unless-stopped
     labels:
-      - "status.url.jdbc=jdbc:postgresql://localhost:${PG_PORT}/mcp_dev"
-      - "status.url.psql=postgresql://postgres:password@localhost:${PG_PORT}/postgres"
+      - "status.url.jdbc=jdbc:postgresql://localhost:${PG_PORT:-15432}/mcp_dev"
+      - "status.url.psql=postgresql://postgres:password@localhost:${PG_PORT:-15432}/postgres"
       - "status.cred.username=postgres"
       - "status.cred.password=password"
 
@@ -78,16 +78,16 @@ services:
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     volumes:
       - pgadmin:/var/lib/pgadmin
-      - ./docker/postgres/pgadmin_servers.json:/pgadmin4/servers.json
+      - ./docker/db/pgadmin/pgadmin_servers.json:/pgadmin4/servers.json
     ports:
-      - "${PGADMIN_PORT}:5433"  # pgAdmin port, configurable via PGADMIN_PORT
+      - "${PGADMIN_PORT:-15433}:80"  # pgAdmin port, configurable via PGADMIN_PORT
     entrypoint:
       - "/bin/sh"
       - "-c"
       - "/bin/echo 'postgres:5432:*:postgres:password' > /tmp/pgpassfile && chmod 600 /tmp/pgpassfile && /entrypoint.sh"
     restart: unless-stopped
     labels:
-      - "status.url.ui=http://localhost:${PGADMIN_PORT}"
+      - "status.url.ui=http://localhost:${PGADMIN_PORT:-15433}"
       - "status.cred.username=admin@example.com"
       - "status.cred.password=admin"
 
@@ -100,11 +100,11 @@ services:
     volumes:
       - loki:/loki
     ports:
-      - "${LOKI_PORT}:3100"  # Loki HTTP API, configurable via LOKI_PORT
+      - "${LOKI_PORT:-3100}:3100"  # Loki HTTP API, configurable via LOKI_PORT
     restart: unless-stopped
     labels:
-      - "status.url.http=http://localhost:${LOKI_PORT}/metrics"
-      - "status.url.api=http://localhost:${LOKI_PORT}"
+      - "status.url.http=http://localhost:${LOKI_PORT:-3100}/metrics"
+      - "status.url.api=http://localhost:${LOKI_PORT:-3100}"
 
   tempo:
     profiles: ["observability", "all"]
@@ -114,12 +114,12 @@ services:
     volumes:
       - ./docker/observability/config/tempo.yaml:/etc/tempo.yaml:ro
     ports:
-      - "${TEMPO_PORT}:3200"  # Tempo OTLP HTTP, configurable via TEMPO_PORT
-      - "${TEMPO_ZIPKIN_PORT}:9411"  # Tempo Zipkin HTTP, configurable via TEMPO_ZIPKIN_PORT
+      - "${TEMPO_PORT:-3200}:3200"  # Tempo OTLP HTTP, configurable via TEMPO_PORT
+      - "${TEMPO_ZIPKIN_PORT:-9411}:9411"  # Tempo Zipkin HTTP, configurable via TEMPO_ZIPKIN_PORT
     restart: unless-stopped
     labels:
-      - "status.url.otlp=http://localhost:${TEMPO_PORT}"
-      - "status.url.zipkin=http://localhost:${TEMPO_ZIPKIN_PORT}"
+      - "status.url.otlp=http://localhost:${TEMPO_PORT:-3200}"
+      - "status.url.zipkin=http://localhost:${TEMPO_ZIPKIN_PORT:-9411}"
 
   otel-collector:
     profiles: ["observability", "all"]
@@ -130,12 +130,12 @@ services:
     command:
       - "--config=/etc/otel/config.yaml"
     ports:
-      - "${OTEL_COLLECTOR_GRPC_PORT}:4317"  # OTLP gRPC, configurable via OTEL_COLLECTOR_GRPC_PORT
-      - "${OTEL_COLLECTOR_HTTP_PORT}:4318"  # OTLP HTTP, configurable via OTEL_COLLECTOR_HTTP_PORT
+      - "${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317"  # OTLP gRPC, configurable via OTEL_COLLECTOR_GRPC_PORT
+      - "${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318"  # OTLP HTTP, configurable via OTEL_COLLECTOR_HTTP_PORT
     restart: unless-stopped
     labels:
-      - "status.url.grpc=grpc://localhost:${OTEL_COLLECTOR_GRPC_PORT}"
-      - "status.url.http=http://localhost:${OTEL_COLLECTOR_HTTP_PORT}"
+      - "status.url.grpc=grpc://localhost:${OTEL_COLLECTOR_GRPC_PORT:-4317}"
+      - "status.url.http=http://localhost:${OTEL_COLLECTOR_HTTP_PORT:-4318}"
 
   prometheus:
     profiles: ["observability", "all"]
@@ -150,11 +150,11 @@ services:
       - prometheus:/prometheus
       - ./docker/observability/config/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
     ports:
-      - "${PROMETHEUS_PORT}:9090"  # Prometheus Web UI, configurable via PROMETHEUS_PORT
+      - "${PROMETHEUS_PORT:-9090}:9090"  # Prometheus Web UI, configurable via PROMETHEUS_PORT
     restart: unless-stopped
     labels:
-      - "status.url.ui=http://localhost:${PROMETHEUS_PORT}"
-      - "status.url.api=http://localhost:${PROMETHEUS_PORT}/api/v1"
+      - "status.url.ui=http://localhost:${PROMETHEUS_PORT:-9090}"
+      - "status.url.api=http://localhost:${PROMETHEUS_PORT:-9090}/api/v1"
 
   grafana:
     profiles: ["observability", "all"]
@@ -169,10 +169,10 @@ services:
       - ./docker/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./docker/observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
     ports:
-      - "${GRAFANA_PORT}:3000"  # Grafana Web UI, configurable via GRAFANA_PORT
+      - "${GRAFANA_PORT:-3000}:3000"  # Grafana Web UI, configurable via GRAFANA_PORT
     restart: unless-stopped
     labels:
-      - "status.url.ui=http://localhost:${GRAFANA_PORT}"
+      - "status.url.ui=http://localhost:${GRAFANA_PORT:-3000}"
       - "status.cred.anonymous=enabled (admin access)"
 
 

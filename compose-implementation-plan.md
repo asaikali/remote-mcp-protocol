@@ -33,10 +33,16 @@ Based on the design constraints in `compose-design.md`, here's the implementatio
 Before implementing the compose script, the `compose.yaml` and `.env` files must be updated to follow the design constraints.
 
 ## Part 1 Current Issues:
-1. **Profile System**: Current `compose.yaml` uses `["mcp"]`, `["postgres"]`, `["observability"]` but constraints require `["default", "all"]` profiles
-2. **Missing Status Labels**: No `status.*` labels in services for connection information
-3. **Missing .env File**: Environment variables are defined inline with defaults, but convention requires separate `.env` file
-4. **Environment Variable Names**: Need to verify all variables follow `<SERVICE_NAME>_*` naming convention
+1. **Profile System**: ✅ RESOLVED - Updated to use db, mcp, observability, default, all structure
+2. **Status Labels**: ✅ RESOLVED - Added status.* labels to all services  
+3. **Environment Variables**: ✅ RESOLVED - Using proper ${VAR:-default} syntax with optional .env
+4. **File Paths**: ✅ RESOLVED - Updated to use profile-based docker directory structure
+
+## Part 1 SIMPLIFICATION UPDATE:
+**NEW APPROACH**: Make .env optional with compose.yaml defaults
+- `compose.yaml` uses `${VAR:-default}` syntax for built-in defaults
+- `.env` file becomes optional override mechanism
+- Simpler onboarding: `git clone && docker compose up` just works
 
 ## Profile-Based Directory Structure (Convention Only):
 **Note**: The `docker/` directory structure follows profile organization but the script does NOT enforce this:
@@ -89,8 +95,8 @@ Before implementing the compose script, the `compose.yaml` and `.env` files must
 - [ ] **Dependency Checks**: Add checks for required commands (`docker` and `yq`)
 - [ ] **Convention Validation**: Implement validation functions:
   - `check_compose_file()` - Check for `compose.yaml` existence (exact filename required)
-  - `check_env_file()` - Check for `.env` existence (required by convention)  
   - `check_service_profiles()` - Validate all services have profiles set (using yq, fail fast if yq missing)
+  - Note: No `check_env_file()` needed - .env is now optional
 
 ## Part 2 Phase 2: Environment and Profile Management
 **TODO LIST:**
