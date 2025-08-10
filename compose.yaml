@@ -198,6 +198,10 @@ services:
   otel-collector:
     profiles: ["observability", "all"]
     image: "${OTEL_COLLECTOR_IMAGE:-ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.125.0}"
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
     command:
       - "--config=/etc/otel/config.yaml"
     ports:
@@ -232,6 +236,8 @@ services:
   grafana:
     profiles: ["observability", "all"]
     image: "${GRAFANA_IMAGE:-grafana/grafana:12.0.0}"
+    depends_on:
+      - otel-collector
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
