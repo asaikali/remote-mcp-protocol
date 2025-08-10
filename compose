@@ -279,19 +279,40 @@ COMPOSE_FILE="$(find_compose_file "$SCRIPT_DIR")" || { log error "No compose fil
 
 # Load port configuration from environment variables or use defaults
 setup_ports() {
-  # Source .env file if it exists (Docker Compose will also use it)
-  if [[ -f "$SCRIPT_DIR/.env" ]]; then
-    # Only export variables that aren't already set
-    while IFS='=' read -r key value; do
-      # Skip comments and empty lines
-      [[ $key =~ ^[[:space:]]*# ]] && continue
-      [[ -z $key ]] && continue
-      # Export if not already set (check if variable exists)
-      if [[ -z ${!key:-} ]]; then
-        export "$key=$value"
-      fi
-    done < "$SCRIPT_DIR/.env"
-  fi
+  # Track which variables were originally set as environment variables
+  local originally_set_vars=()
+  for var in MCP_SSE_PORT MCP_STREAMABLE_PORT MCP_INSPECTOR_PORT MCP_INSPECTOR_WS_PORT; do
+    if [[ -n "${!var:-}" ]]; then
+      originally_set_vars+=("$var")
+    fi
+  done
+  
+  # Helper function to load env file with priority support
+  load_env_file() {
+    local file="$1"
+    local force_override="$2"
+    if [[ -f "$file" ]]; then
+      while IFS='=' read -r key value || [[ -n "$key" ]]; do
+        # Skip comments and empty lines
+        [[ $key =~ ^[[:space:]]*# ]] && continue
+        [[ -z $key ]] && continue
+        # Never override environment variables that were originally set
+        if printf '%s\n' "${originally_set_vars[@]}" | grep -q "^$key$"; then
+          continue
+        fi
+        # For .env.local, override existing values; for .env, only set if not already set
+        if [[ "$force_override" == "true" ]] || [[ -z ${!key:-} ]]; then
+          export "$key=$value"
+        fi
+      done < "$file"
+    fi
+  }
+  
+  # Load .env first (team defaults) - only if not already set
+  load_env_file "$SCRIPT_DIR/.env" "false"
+  
+  # Load .env.local second (personal overrides) - force override
+  load_env_file "$SCRIPT_DIR/.env.local" "true"
   
   # Set defaults for any variables still not set
   export MCP_SSE_PORT=${MCP_SSE_PORT:-3001}
@@ -308,8 +329,7 @@ setup_ports() {
   )
 }
 
-# Call setup_ports to initialize
-setup_ports
+# setup_ports will be called for each command that needs it
 
 #------------------------------------------------------------------------------
 # Main command handler
@@ -326,6 +346,7 @@ case $cmd in
 
   # Up command: Start MCP stack containers
   up)
+    setup_ports  # Load port configuration
     log header "Starting containers"
     # Try to start the containers in detached mode
     if docker_compose up -d; then
@@ -355,6 +376,7 @@ case $cmd in
 
   # Status command: Show container status and connection information
   status)
+    setup_ports  # Load port configuration
     log header "Container Status"
     docker_compose ps       # Show container status
     show_connections        # Show connection information
@@ -362,6 +384,7 @@ case $cmd in
 
   # Fix command: Automatically resolve port conflicts
   fix)
+    setup_ports  # Load port configuration
     log header "Resolving Port Conflicts"
     # For each port in the MCP stack
     for p in "${PORTS[@]}"; do
@@ -374,16 +397,19 @@ case $cmd in
 
   # Ports command: Show current port configuration
   ports)
+    setup_ports  # Load port configuration
     log header "Port Configuration"
     printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "SSE Server" "$MCP_SSE_PORT"
     printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Streamable HTTP Server" "$MCP_STREAMABLE_PORT"
     printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector GUI" "$MCP_INSPECTOR_PORT"
     printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Inspector WebSocket" "$MCP_INSPECTOR_WS_PORT"
     echo
-    log info "To change ports, modify the .env file or set environment variables:"
-    log info "→ Edit .env file in the project root"
-    log info "→ Or set: export MCP_SSE_PORT=5001"
-    log info "→ Or run: MCP_SSE_PORT=5001 ./compose up"
+    log info "To change ports, you have several options:"
+    log info "→ Create .env.local: cp .env.local.example .env.local (recommended)"
+    log info "→ Set environment variables: export MCP_SSE_PORT=5001"
+    log info "→ Inline override: MCP_SSE_PORT=5001 ./compose up"
+    echo
+    log info "Priority: Environment variables > .env.local > .env > defaults"
     ;;
 
   # Logs command: Show container logs

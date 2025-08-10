@@ -41,16 +41,17 @@ The MCP stack uses configurable ports via environment variables. Default ports:
 
 ### Configuring Ports
 
-**Option 1: Edit .env file (Recommended)**
+**Option 1: .env.local file (Recommended for local development)**
 ```bash
-# Edit the .env file in the project root
-vim .env
+# Copy the example template
+cp .env.local.example .env.local
 
-# Modify port values:
+# Edit your local configuration (gitignored - won't be committed)
+vim .env.local
+
+# Uncomment and modify any ports you want to override:
 MCP_SSE_PORT=5001
 MCP_STREAMABLE_PORT=5002
-MCP_INSPECTOR_PORT=5274
-MCP_INSPECTOR_WS_PORT=5277
 ```
 
 **Option 2: Environment variables**
@@ -68,6 +69,17 @@ compose up
 # Override ports for a single run
 MCP_SSE_PORT=5001 MCP_STREAMABLE_PORT=5002 compose up
 ```
+
+### Configuration Priority
+
+The system loads configuration in this order (highest to lowest priority):
+
+1. **Environment variables** - `export MCP_SSE_PORT=5001`
+2. **`.env.local`** - Personal overrides (gitignored)
+3. **`.env`** - Team defaults (committed to git)
+4. **Script defaults** - Hardcoded fallbacks
+
+This means you can safely customize ports in `.env.local` without affecting other developers or accidentally committing your changes.
 
 ### Check Current Port Configuration
 ```bash

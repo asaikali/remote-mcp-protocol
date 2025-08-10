@@ -34,3 +34,6 @@ build/
 
 ### Vendir Resources ###
 /resources/
+
+### Local Environment Configuration ###
+.env.local
