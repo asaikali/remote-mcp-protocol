@@ -75,6 +75,29 @@ Each command should:
 - `status [profiles...]` - Show connection information using `status.*` labels
 - All custom commands treat "all" and "default" as regular profiles (no special expansion logic)
 
+**`profiles` command output**:
+```bash
+compose profiles
+Available profiles:
+  default          # Services that run in default development environment
+  all              # All services (for integration testing)  
+  db               # Database services (postgres, pgadmin)
+  observability    # Observability stack (grafana, tempo, prometheus, otel-collector)
+```
+
+**`clean` command implementation**:
+```bash
+clean)
+  validate_conventions
+  load_env
+  profiles=$(parse_profiles "$@")
+  show_profile_divider "$profiles"
+  
+  # Use docker compose down with volume removal
+  docker_compose_with_profiles "down" "$profiles" "-v" "--remove-orphans"
+  ;;
+```
+
 ## Phase 3: Status Command Implementation
 
 ### 3.1 Label Extraction
@@ -261,13 +284,29 @@ case $cmd in
     docker_compose_with_profiles "$cmd" "$profiles" "${remaining_args[@]}"
     ;;
   clean)
-    # Custom implementation for volume/network cleanup 
+    validate_conventions
+    load_env
+    profiles=$(parse_profiles "$@")
+    show_profile_divider "$profiles"
+    docker_compose_with_profiles "down" "$profiles" "-v" "--remove-orphans"
     ;;
   status)
     # Custom implementation using label extraction
     ;;
   profiles)
-    # List available profiles + explain "default"/"all" conventions
+    # Get available profiles from compose.yaml
+    log header "Available Profiles"
+    local available_profiles=($(get_profiles))
+    
+    for profile in "${available_profiles[@]}"; do
+      case "$profile" in
+        default)      echo "  default          # Services that run in default development environment" ;;
+        all)          echo "  all              # All services (for integration testing)" ;;
+        db)           echo "  db               # Database services (postgres, pgadmin)" ;;
+        observability) echo "  observability    # Observability stack (grafana, tempo, prometheus, otel-collector)" ;;
+        *)            echo "  $profile         # Custom profile" ;;
+      esac
+    done
     ;;
   *)
     show_usage
