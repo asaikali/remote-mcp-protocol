@@ -1,6 +1,8 @@
 volumes:
   postgres:
   pgadmin:
+  loki:
+  prometheus:
 
 services:
   # MCP Services
@@ -69,6 +71,75 @@ services:
       - "/bin/sh"
       - "-c"
       - "/bin/echo 'postgres:5432:*:postgres:password' > /tmp/pgpassfile && chmod 600 /tmp/pgpassfile && /entrypoint.sh"
+    restart: unless-stopped
+
+  # Observability Services
+  loki:
+    profiles: ["observability"]
+    image: grafana/loki:3.5.0
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki:/loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"  # Loki HTTP API, configurable via LOKI_PORT
+    restart: unless-stopped
+
+  tempo:
+    profiles: ["observability"]
+    image: grafana/tempo:2.7.2
+    command:
+      - -config.file=/etc/tempo.yaml
+    volumes:
+      - ./docker/observability/config/tempo.yaml:/etc/tempo.yaml:ro
+    ports:
+      - "${TEMPO_PORT:-3200}:3200"  # Tempo OTLP HTTP, configurable via TEMPO_PORT
+      - "${TEMPO_ZIPKIN_PORT:-9411}:9411"  # Tempo Zipkin HTTP, configurable via TEMPO_ZIPKIN_PORT
+    restart: unless-stopped
+
+  otel-collector:
+    profiles: ["observability"]
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.125.0
+    container_name: otel-collector
+    volumes:
+      - ./docker/observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
+    command:
+      - "--config=/etc/otel/config.yaml"
+    ports:
+      - "${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317"  # OTLP gRPC, configurable via OTEL_COLLECTOR_GRPC_PORT
+      - "${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318"  # OTLP HTTP, configurable via OTEL_COLLECTOR_HTTP_PORT
+    restart: unless-stopped
+
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v3.3.1
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    command:
+      - --enable-feature=exemplar-storage
+      - --web.enable-remote-write-receiver
+      - --config.file=/etc/prometheus/prometheus.yaml
+    volumes:
+      - prometheus:/prometheus
+      - ./docker/observability/config/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"  # Prometheus Web UI, configurable via PROMETHEUS_PORT
+    restart: unless-stopped
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:12.0.0
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+    volumes:
+      - ./docker/observability/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./docker/observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./docker/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./docker/observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"  # Grafana Web UI, configurable via GRAFANA_PORT
     restart: unless-stopped
 
 

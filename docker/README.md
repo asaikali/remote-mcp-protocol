@@ -56,13 +56,25 @@ docker/
 ├── postgres/
 │   ├── init.sql           # PostgreSQL database initialization
 │   └── pgadmin_servers.json  # pgAdmin server configuration
+├── observability/
+│   ├── config/
+│   │   ├── otel-collector.yaml    # OpenTelemetry Collector configuration
+│   │   ├── prometheus.yaml        # Prometheus scrape configuration
+│   │   └── tempo.yaml             # Tempo tracing backend configuration
+│   └── grafana/
+│       ├── grafana.ini            # Grafana server configuration
+│       └── provisioning/          # Auto-provisioned resources
+│           ├── datasources/       # Prometheus, Tempo, Loki connections
+│           ├── dashboards/        # Pre-built Spring Boot dashboards
+│           └── alerting/          # Alert rules
 └── README.md              # This documentation
 ```
 
 This modular structure allows for:
-- **Clean separation** of concerns between MCP and PostgreSQL
+- **Clean separation** of concerns between MCP, PostgreSQL, and Observability
 - **Independent builds** for each service type
 - **Easy maintenance** and updates per service group
+- **Flexible deployment** with profile-based service selection
 
 ## Port Configuration
 
@@ -78,6 +90,13 @@ The environment supports configurable ports for all services via environment var
 - **PostgreSQL Database**: 15432
 - **pgAdmin Web Interface**: 15433
 
+**Observability Services:**
+- **Grafana Dashboard**: 3000
+- **Prometheus Metrics**: 9090
+- **Loki Logs**: 3100
+- **Tempo Traces**: 3200 (OTLP), 9411 (Zipkin)
+- **OpenTelemetry Collector**: 4317 (gRPC), 4318 (HTTP)
+
 ### Configuring Ports
 
 **Option 1: .env.local file (Recommended for local development)**
@@ -91,6 +110,8 @@ vim .env.local
 # Uncomment and modify any ports you want to override:
 MCP_SSE_PORT=5001
 MCP_STREAMABLE_PORT=5002
+GRAFANA_PORT=8000
+PROMETHEUS_PORT=8090
 ```
 
 **Option 2: Environment variables**
@@ -98,6 +119,7 @@ MCP_STREAMABLE_PORT=5002
 # Set environment variables
 export MCP_SSE_PORT=5001
 export MCP_STREAMABLE_PORT=5002
+export GRAFANA_PORT=8000
 
 # Then run compose
 compose up
@@ -106,7 +128,7 @@ compose up
 **Option 3: Inline with commands**
 ```bash
 # Override ports for a single run
-MCP_SSE_PORT=5001 MCP_STREAMABLE_PORT=5002 compose up
+MCP_SSE_PORT=5001 GRAFANA_PORT=8000 compose up
 ```
 
 ### Configuration Priority
@@ -183,6 +205,17 @@ When the inspector (running inside Docker) tries to connect to `http://localhost
 | PostgreSQL | 15432* | - | PostgreSQL 17 database server |
 | pgAdmin | 15433* | http://localhost:15433 | Web-based PostgreSQL administration |
 
+### Observability Services (Profile: `observability`)
+
+| Service | Default Port | URL | Description |
+|---------|--------------|-----|-------------|
+| Grafana | 3000* | http://localhost:3000 | Unified observability dashboard |
+| Prometheus | 9090* | http://localhost:9090 | Metrics collection and storage |
+| Loki | 3100* | http://localhost:3100 | Log aggregation (API only) |
+| Tempo | 3200* | http://localhost:3200 | Distributed tracing (OTLP) |
+| Tempo Zipkin | 9411* | http://localhost:9411 | Distributed tracing (Zipkin) |
+| OTel Collector | 4317*/4318* | - | OpenTelemetry data collection |
+
 *All ports are configurable via environment variables - see [Port Configuration](#port-configuration) section.
 
 ## Compose Script Commands
@@ -207,7 +240,8 @@ The `compose` script provides convenient management commands with color-coded ou
 All commands support optional profiles to operate on specific services:
 
 - **`mcp`**: MCP services only (Inspector, SSE Server, Streamable Server)
-- **`postgres`**: PostgreSQL services only (PostgreSQL, pgAdmin)  
+- **`postgres`**: PostgreSQL services only (PostgreSQL, pgAdmin)
+- **`observability`**: Observability stack only (Grafana, Prometheus, Loki, Tempo, OTel Collector)
 - **`all`** or no profile: All services (default behavior)
 
 ### Usage Examples
@@ -223,11 +257,17 @@ compose status
 # Check current port configuration
 compose ports
 
+# Start only observability stack for monitoring other applications
+compose up observability
+
+# Start MCP services with observability for development
+compose up mcp observability
+
 # View logs from all containers
 compose logs
 
 # View logs from specific service with options
-compose logs mcp-inspector --tail 50
+compose logs grafana --tail 50
 
 # If you have port conflicts, fix them automatically
 compose fix
@@ -243,6 +283,47 @@ compose down
 - **Connection information**: Shows direct URLs and inspector connection URLs
 - **Orphan cleanup**: Removes orphaned containers when stopping services
 - **Smart container management**: Uses Docker Compose when possible, falls back to docker commands
+
+## Observability Stack Integration
+
+The integrated observability stack provides comprehensive monitoring capabilities for Spring Boot applications and other services:
+
+### Key Components
+
+- **Grafana**: Unified dashboard for visualizing metrics, logs, and traces
+- **Prometheus**: Time-series metrics collection and storage
+- **Loki**: Log aggregation and querying
+- **Tempo**: Distributed tracing storage
+- **OpenTelemetry Collector**: Telemetry data collection and processing
+
+### Integration Patterns
+
+**Direct Integration** (Spring Boot → Backends):
+```yaml
+# Spring Boot sends data directly to observability backends
+Spring App → Prometheus (metrics scraping)
+Spring App → Tempo (Zipkin traces)
+Spring App → Loki (log shipping)
+```
+
+**OpenTelemetry Integration** (Spring Boot → OTel Collector → Backends):
+```yaml  
+# Spring Boot sends OTLP data to collector, which routes to backends
+Spring App → OTel Collector → Prometheus/Tempo/Loki
+```
+
+### Quick Start with Spring Boot
+
+1. Start the observability stack: `compose up observability`
+2. Configure your Spring Boot application with observability dependencies
+3. Access Grafana at http://localhost:3000 (pre-configured dashboards included)
+4. Monitor your application metrics, logs, and traces in one unified interface
+
+The observability stack comes pre-configured with:
+- **Datasource connections** between Grafana and all backends
+- **Spring Boot dashboards** for JVM metrics, HTTP requests, and database connections  
+- **Trace-to-metrics correlation** for linking traces to performance data
+- **Log-to-trace correlation** for debugging across telemetry types
 
 ## Direct Docker Commands (Alternative)
 

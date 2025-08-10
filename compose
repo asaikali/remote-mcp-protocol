@@ -250,6 +250,60 @@ show_postgres_connections() {
   fi
 }
 
+# Function: show_observability_connections
+# Description: Displays connection information for observability services
+show_observability_connections() {
+  local profile="$1"
+  local pad="%-15s"
+
+  # Check if Grafana container is running
+  if docker_compose "$profile" ps --services --filter status=running | grep -q grafana; then
+    # Display Grafana URL with a green checkmark
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Grafana" "http://localhost:$GRAFANA_PORT"
+  else
+    # Display warning if Grafana is not running
+    log warn "Grafana not running"
+  fi
+
+  # Check if Prometheus container is running
+  if docker_compose "$profile" ps --services --filter status=running | grep -q prometheus; then
+    # Display Prometheus URL with a green checkmark
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Prometheus" "http://localhost:$PROMETHEUS_PORT"
+  else
+    # Display warning if Prometheus is not running
+    log warn "Prometheus not running"
+  fi
+
+  # Check if Loki container is running
+  if docker_compose "$profile" ps --services --filter status=running | grep -q loki; then
+    # Display Loki URL with a green checkmark
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Loki API" "http://localhost:$LOKI_PORT"
+  else
+    # Display warning if Loki is not running
+    log warn "Loki not running"
+  fi
+
+  # Check if Tempo container is running
+  if docker_compose "$profile" ps --services --filter status=running | grep -q tempo; then
+    # Display Tempo URLs with green checkmarks
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Tempo API" "http://localhost:$TEMPO_PORT"
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "Tempo Zipkin" "http://localhost:$TEMPO_ZIPKIN_PORT"
+  else
+    # Display warning if Tempo is not running
+    log warn "Tempo not running"
+  fi
+
+  # Check if OpenTelemetry Collector container is running
+  if docker_compose "$profile" ps --services --filter status=running | grep -q otel-collector; then
+    # Display OTel Collector URLs with green checkmarks
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "OTel HTTP API" "http://localhost:$OTEL_COLLECTOR_HTTP_PORT"
+    printf "${GREEN}✓ ${BOLD}${pad}${NC}: %s\n" "OTel gRPC API" "grpc://localhost:$OTEL_COLLECTOR_GRPC_PORT"
+  else
+    # Display warning if OTel Collector is not running
+    log warn "OpenTelemetry Collector not running"
+  fi
+}
+
 # Function: show_connections
 # Description: Displays connection information based on profile
 show_connections() {
@@ -265,12 +319,18 @@ show_connections() {
     postgres)
       show_postgres_connections "$profile" 
       ;;
+    observability)
+      show_observability_connections "$profile"
+      ;;
     all)
       log info "MCP Services"
       show_mcp_connections "$profile"
       echo
       log info "PostgreSQL Services"  
       show_postgres_connections "$profile"
+      echo
+      log info "Observability Services"
+      show_observability_connections "$profile"
       ;;
   esac
 }
@@ -315,13 +375,15 @@ usage() {
   printf "Profiles (optional):\n"
   printf "  ${GREEN}mcp${NC}           MCP services only (Inspector, SSE, Streamable)\n"
   printf "  ${BLUE}postgres${NC}      PostgreSQL services only (PostgreSQL, pgAdmin)\n"
+  printf "  ${YELLOW}observability${NC} Observability stack only (Grafana, Prometheus, Loki, Tempo)\n"
   printf "  ${YELLOW}all${NC}           All services (default)\n\n"
   printf "Examples:\n"
-  printf "  ./compose up                    # Start all services\n"
-  printf "  ./compose up mcp                # Start only MCP services\n"
-  printf "  ./compose status postgres       # Show only PostgreSQL status\n"
-  printf "  ./compose ports mcp             # Show only MCP ports\n"
-  printf "  ./compose logs everything-sse   # Show logs from specific service\n"
+  printf "  ./compose up                         # Start all services\n"
+  printf "  ./compose up mcp                     # Start only MCP services\n"
+  printf "  ./compose up observability           # Start only observability stack\n"
+  printf "  ./compose status postgres            # Show only PostgreSQL status\n"
+  printf "  ./compose ports observability        # Show only observability ports\n"
+  printf "  ./compose logs grafana               # Show logs from specific service\n"
 }
 
 #------------------------------------------------------------------------------
@@ -342,7 +404,7 @@ COMPOSE_FILE="$(find_compose_file "$SCRIPT_DIR")" || { log error "No compose fil
 setup_ports() {
   # Track which variables were originally set as environment variables
   local originally_set_vars=()
-  for var in MCP_SSE_PORT MCP_STREAMABLE_PORT MCP_INSPECTOR_PORT MCP_INSPECTOR_WS_PORT PG_PORT PGADMIN_PORT; do
+  for var in MCP_SSE_PORT MCP_STREAMABLE_PORT MCP_INSPECTOR_PORT MCP_INSPECTOR_WS_PORT PG_PORT PGADMIN_PORT GRAFANA_PORT PROMETHEUS_PORT LOKI_PORT TEMPO_PORT TEMPO_ZIPKIN_PORT OTEL_COLLECTOR_GRPC_PORT OTEL_COLLECTOR_HTTP_PORT; do
     if [[ -n "${!var:-}" ]]; then
       originally_set_vars+=("$var")
     fi
@@ -382,6 +444,13 @@ setup_ports() {
   export MCP_INSPECTOR_WS_PORT=${MCP_INSPECTOR_WS_PORT:-6277}
   export PG_PORT=${PG_PORT:-15432}
   export PGADMIN_PORT=${PGADMIN_PORT:-15433}
+  export GRAFANA_PORT=${GRAFANA_PORT:-3000}
+  export PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
+  export LOKI_PORT=${LOKI_PORT:-3100}
+  export TEMPO_PORT=${TEMPO_PORT:-3200}
+  export TEMPO_ZIPKIN_PORT=${TEMPO_ZIPKIN_PORT:-9411}
+  export OTEL_COLLECTOR_GRPC_PORT=${OTEL_COLLECTOR_GRPC_PORT:-4317}
+  export OTEL_COLLECTOR_HTTP_PORT=${OTEL_COLLECTOR_HTTP_PORT:-4318}
   
   # Define ports arrays for each profile
   MCP_PORTS=(
@@ -396,14 +465,24 @@ setup_ports() {
     "$PGADMIN_PORT"         # pgAdmin
   )
   
-  ALL_PORTS=("${MCP_PORTS[@]}" "${POSTGRES_PORTS[@]}")
+  OBSERVABILITY_PORTS=(
+    "$GRAFANA_PORT"         # Grafana
+    "$PROMETHEUS_PORT"      # Prometheus
+    "$LOKI_PORT"           # Loki
+    "$TEMPO_PORT"          # Tempo
+    "$TEMPO_ZIPKIN_PORT"   # Tempo Zipkin
+    "$OTEL_COLLECTOR_GRPC_PORT"  # OTel Collector gRPC
+    "$OTEL_COLLECTOR_HTTP_PORT"  # OTel Collector HTTP
+  )
+  
+  ALL_PORTS=("${MCP_PORTS[@]}" "${POSTGRES_PORTS[@]}" "${OBSERVABILITY_PORTS[@]}")
 }
 
 # Profile and command parsing
 parse_profile() {
   local profile="${1:-all}"
   case "$profile" in
-    mcp|postgres|all) echo "$profile" ;;
+    mcp|postgres|observability|all) echo "$profile" ;;
     *) echo "all" ;;  # Default to all for unknown profiles
   esac
 }
@@ -414,10 +493,11 @@ docker_compose() {
   shift
   
   case "$profile" in
-    mcp)      docker compose -f "$COMPOSE_FILE" --profile mcp "$@" ;;
-    postgres) docker compose -f "$COMPOSE_FILE" --profile postgres "$@" ;;
-    all)      docker compose -f "$COMPOSE_FILE" --profile mcp --profile postgres "$@" ;;
-    *)        docker compose -f "$COMPOSE_FILE" --profile mcp --profile postgres "$@" ;;
+    mcp)           docker compose -f "$COMPOSE_FILE" --profile mcp "$@" ;;
+    postgres)      docker compose -f "$COMPOSE_FILE" --profile postgres "$@" ;;
+    observability) docker compose -f "$COMPOSE_FILE" --profile observability "$@" ;;
+    all)           docker compose -f "$COMPOSE_FILE" --profile mcp --profile postgres --profile observability "$@" ;;
+    *)             docker compose -f "$COMPOSE_FILE" --profile mcp --profile postgres --profile observability "$@" ;;
   esac
 }
 
@@ -425,10 +505,11 @@ docker_compose() {
 get_ports_for_profile() {
   local profile="$1"
   case "$profile" in
-    mcp)      echo "${MCP_PORTS[@]}" ;;
-    postgres) echo "${POSTGRES_PORTS[@]}" ;;
-    all)      echo "${ALL_PORTS[@]}" ;;
-    *)        echo "${ALL_PORTS[@]}" ;;
+    mcp)           echo "${MCP_PORTS[@]}" ;;
+    postgres)      echo "${POSTGRES_PORTS[@]}" ;;
+    observability) echo "${OBSERVABILITY_PORTS[@]}" ;;
+    all)           echo "${ALL_PORTS[@]}" ;;
+    *)             echo "${ALL_PORTS[@]}" ;;
   esac
 }
 
@@ -569,6 +650,15 @@ case $cmd in
         printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "PostgreSQL" "$PG_PORT"
         printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "pgAdmin" "$PGADMIN_PORT"
         ;;
+      observability)
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Grafana" "$GRAFANA_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Prometheus" "$PROMETHEUS_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Loki API" "$LOKI_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Tempo API" "$TEMPO_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Tempo Zipkin" "$TEMPO_ZIPKIN_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "OTel Collector gRPC" "$OTEL_COLLECTOR_GRPC_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "OTel Collector HTTP" "$OTEL_COLLECTOR_HTTP_PORT"
+        ;;
       all)
         log info "MCP Services"
         printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "SSE Server" "$MCP_SSE_PORT"
@@ -579,6 +669,15 @@ case $cmd in
         log info "PostgreSQL Services"
         printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "PostgreSQL" "$PG_PORT"
         printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "pgAdmin" "$PGADMIN_PORT"
+        echo
+        log info "Observability Services"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Grafana" "$GRAFANA_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Prometheus" "$PROMETHEUS_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Loki API" "$LOKI_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Tempo API" "$TEMPO_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "Tempo Zipkin" "$TEMPO_ZIPKIN_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "OTel Collector gRPC" "$OTEL_COLLECTOR_GRPC_PORT"
+        printf "${BLUE}%-25s${NC}: ${GREEN}%s${NC}\n" "OTel Collector HTTP" "$OTEL_COLLECTOR_HTTP_PORT"
         ;;
     esac
     
@@ -601,7 +700,7 @@ case $cmd in
     
     if [[ $# -gt 0 ]]; then
       case "$1" in
-        mcp|postgres|all)
+        mcp|postgres|observability|all)
           profile="$1"
           shift
           args=("$@")
