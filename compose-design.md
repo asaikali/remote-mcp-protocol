@@ -154,11 +154,11 @@ Services should follow this field order for consistency and readability:
 - Service connection info provided through labeling convention in YAML file
 - **Labels are set on services in compose.yaml**: Docker Compose applies service labels to all container instances of that service
 - Labels use environment variable interpolation from `.env`
-- Label naming convention: `status.*` prefix for anything displayed by status command
-  - `status.title` - Human-readable service name displayed by status command (REQUIRED)
-  - `status.url.<url-type>` for different URL types (jdbc, ui, grpc, http, etc.)
-  - `status.cred.<credential_type>` for credentials (username, password, api_key, etc.)
-- **Label extraction**: The compose script extracts labels from running containers using `docker inspect` to reflect current running state
+- Label naming convention: `info.*` prefix for anything displayed by info command
+  - `info.title` - Human-readable service name displayed by info command (REQUIRED)
+  - `info.url.<url-type>` for different URL types (jdbc, ui, grpc, http, etc.)
+  - `info.cred.<credential_type>` for credentials (username, password, api_key, etc.)
+- **Label extraction**: The compose script extracts labels from service configuration using `docker compose config` to show available connection information
 - **Complete service example**:
   ```yaml
   services:
@@ -171,11 +171,11 @@ Services should follow this field order for consistency and readability:
         POSTGRES_USER: ${POSTGRES_CRED_USERNAME}
         POSTGRES_PASSWORD: ${POSTGRES_CRED_PASSWORD}
       labels:
-        - "status.title=PostgreSQL Database"
-        - "status.url.jdbc=jdbc:postgresql://localhost:${POSTGRES_PORT}/mydb"
-        - "status.url.ui=http://localhost:${PGADMIN_PORT}"
-        - "status.cred.username=${POSTGRES_CRED_USERNAME}"
-        - "status.cred.password=${POSTGRES_CRED_PASSWORD}"
+        - "info.title=PostgreSQL Database"
+        - "info.url.jdbc=jdbc:postgresql://localhost:${POSTGRES_PORT}/mydb"
+        - "info.url.ui=http://localhost:${PGADMIN_PORT}"
+        - "info.cred.username=${POSTGRES_CRED_USERNAME}"
+        - "info.cred.password=${POSTGRES_CRED_PASSWORD}"
     
     pgadmin:
       image: dpage/pgadmin4:latest
@@ -183,10 +183,10 @@ Services should follow this field order for consistency and readability:
       ports:
         - "${PGADMIN_PORT}:80"
       labels:
-        - "status.title=pgAdmin Web Interface"
-        - "status.url.ui=http://localhost:${PGADMIN_PORT}"
-        - "status.cred.username=admin@example.com"
-        - "status.cred.password=admin"
+        - "info.title=pgAdmin Web Interface"
+        - "info.url.ui=http://localhost:${PGADMIN_PORT}"
+        - "info.cred.username=admin@example.com"
+        - "info.cred.password=admin"
   ```
 - Makes the script service-agnostic while providing useful connection information
 
@@ -208,9 +208,9 @@ Services should follow this field order for consistency and readability:
   - `compose clean all` applies to all profiles
   - `compose clean postgres` applies to postgres profile only
 - **Clean command scope**: Removes volumes and networks defined in compose.yaml for the specified profile(s) - Docker Compose automatically manages which resources belong to the project
-- `status` command prints out all key connection information developers need to connect to services from their apps or access them via UI (uses the `status.*` label system)
-- `profiles` command lists all available profiles (convenience command, same category as status)
-- The reserved "all" profile works with all commands: `compose status all`, `compose clean all`, etc.
+- `info` command prints out all key connection information developers need to connect to services from their apps or access them via UI (uses the `info.*` label system)
+- `profiles` command lists all available profiles (convenience command, same category as info)
+- The reserved "all" profile works with all commands: `compose info all`, `compose clean all`, etc.
 
 ## Constraint 9 - Script Behavior & Error Handling
 
@@ -223,7 +223,7 @@ Services should follow this field order for consistency and readability:
 - For non-convention errors, let docker compose handle validation and show its error messages
 - Keep the script simple: if docker compose supports features like `--env-file` for overrides, use those docker compose features rather than adding complexity to the script
 - No assumptions about Docker Compose version requirements
-- For the `status` command, print any labels that are prefixed with `status.*` to keep the script simple
+- For the `info` command, print any labels that are prefixed with `info.*` to keep the script simple
 - **Common Error Troubleshooting**: Detect common development errors (like port conflicts) and provide simple troubleshooting information without complex error handling logic
 - **Scaled Container Instances Not Supported**: The script does not support scaled container instances (e.g., `docker compose up --scale service=2`) - this is an advanced feature beyond the scope of the current implementation
 
