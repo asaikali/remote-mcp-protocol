@@ -26,6 +26,30 @@ Based on the design constraints in `compose-design.md`, here's the implementatio
 - **Script Location**: `compose` script at repo root (added to PATH via direnv)
 - **Profile Edge Cases**: Let humans/docker compose handle invalid profiles (no validation)
 
+## CRITICAL PREREQUISITE: Convention Compliance
+
+**🚨 CANNOT PROCEED WITHOUT USER APPROVAL 🚨**
+
+Before implementing the compose script, the `compose.yaml` and `.env` files must be updated to follow the design constraints. The current files do not comply with the established conventions:
+
+### Current Issues:
+1. **Profile System**: Current `compose.yaml` uses `["mcp"]`, `["postgres"]`, `["observability"]` but constraints require `["default", "all"]` profiles
+2. **Missing Status Labels**: No `status.*` labels in services for connection information
+3. **Missing .env File**: Environment variables are defined inline with defaults, but convention requires separate `.env` file
+4. **Environment Variable Names**: Need to verify all variables follow `<SERVICE_NAME>_*` naming convention
+
+### Required Changes:
+1. Update all services to use proper profile system (`["default", "all"]` combinations)
+2. Add `status.*` labels to all services for connection information
+3. Create `.env` file with proper environment variable naming conventions
+4. Ensure environment variable interpolation follows constraints
+
+**Implementation cannot proceed until:**
+- [ ] `compose.yaml` updated with proper profiles and status labels
+- [ ] `.env` file created with proper naming conventions  
+- [ ] User reviews and approves convention compliance
+- [ ] User confirms approach for profile system (see questions above)
+
 ## Phase 1: Core Infrastructure
 
 ### 1.1 Basic Script Structure
