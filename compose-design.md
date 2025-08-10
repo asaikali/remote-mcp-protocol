@@ -2,6 +2,26 @@
 
 This document defines the design constraints for the `compose` script and associated Docker configuration system.
 
+## Constraint 0 - Assumptions About Developers
+
+**System Philosophy**: All developers want a simple experience getting going with a repo - checkout, import into IDE, launch dependency services, and get coding. This system achieves that simplicity through team conventions maintained by a few people on the team, allowing most developers to just run commands and follow established patterns without needing to understand the underlying implementation details.
+
+### **Persona 1: Script Users (Majority of Developers)**
+- **Basic Docker Compose Knowledge**: Understand fundamental Docker Compose concepts (services, volumes, ports, environment variables)
+- **Script Conventions**: Learn the compose script conventions:
+  - `compose up` starts default development environment
+  - `compose up all` starts everything for integration testing
+  - `compose up <profiles>` starts specific service groups
+  - `compose status` shows connection information for running services
+  - Services are organized by profiles (`default`, `all`, custom profiles)
+  - Environment configuration through `.env` and `.env.local` files
+
+### **Persona 2: Script & Convention Maintainers (Few Developers per Team)**
+- **Advanced Docker Compose Experience**: Deep understanding of profiles, labels, environment interpolation, and compose file structure
+- **System Design Mindset**: Responsible for designing and maintaining the conventions, tooling, and documentation for team adoption
+- **DevOps/Platform Orientation**: Comfortable establishing development infrastructure standards and troubleshooting convention violations
+- **Script Modification**: Only this persona modifies the compose script itself or establishes new conventions
+
 ## Constraint 1 - File Structure & Dependencies
 
 - There is only one script called `compose` at the root of the repo

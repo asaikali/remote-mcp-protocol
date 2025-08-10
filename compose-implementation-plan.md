@@ -2,6 +2,27 @@
 
 Based on the design constraints in `compose-design.md`, here's the implementation plan for the new `compose` script.
 
+## Impact of Developer Persona Constraints
+
+**Constraint 0** significantly impacts implementation priorities:
+
+### **For Script Users (Majority)**
+- **Prioritize clear, helpful output**: Error messages must be actionable for developers with basic Docker Compose knowledge
+- **Emphasize `compose status` command**: This is critical for the "get coding quickly" experience - developers need to see connection info immediately
+- **Simple command patterns**: Commands should be intuitive and follow familiar Docker Compose patterns
+- **Comprehensive documentation**: Since users will reference docs when adding services, we need examples and patterns
+
+### **For Convention Maintainers (Few)**  
+- **Advanced debugging capabilities**: Detailed error output for troubleshooting convention violations
+- **Flexible configuration**: Support for complex labeling and environment variable patterns
+- **Script maintainability**: Code should be readable and modifiable by this persona
+
+### **Implementation Priorities**
+1. **User Experience First**: Focus on the 80% use case (script users) over advanced features
+2. **Clear Error Messages**: Distinguish between "user error" vs "configuration error"
+3. **Status Command Excellence**: This enables the "get coding quickly" goal
+4. **Documentation Generation**: Consider adding commands to help maintainers create user documentation
+
 ## Phase 1: Core Infrastructure
 
 ### 1.1 Basic Script Structure
@@ -67,11 +88,19 @@ Each command should:
   - `status.url.*` - Connection URLs
   - `status.cred.*` - Credential information
 
-### 3.2 Status Display
-- Group status information by service
-- Format URLs and credentials nicely
+### 3.2 Status Display (Critical for Script Users)
+- **Priority: User Experience**: This command enables the "get coding quickly" goal
+- Group status information by service with clear visual separation
+- Format connection information for easy copy-paste:
+  ```
+  == PostgreSQL Services ==
+  ✓ Database    : jdbc:postgresql://localhost:15432/mydb
+  ✓ Admin UI    : http://localhost:15433
+  ✓ Credentials : username=admin, password=secret
+  ```
 - Show only information for services in specified profiles
-- Use consistent formatting with colors and structure
+- Include usage hints: "Copy connection strings for your IDE/app configuration"
+- Handle missing status labels gracefully (show service name but indicate no connection info available)
 
 ## Phase 4: Error Handling & Validation
 
@@ -79,14 +108,22 @@ Each command should:
 **`check_compose_file()`**:
 ```bash
 check_compose_file() {
-  [[ -f compose.yaml ]] || { log error "compose.yaml not found - only compose.yaml filename is supported"; exit 1; }
+  if [[ ! -f compose.yaml ]]; then
+    log error "compose.yaml not found - only compose.yaml filename is supported"
+    log info "This script requires compose.yaml in the same directory"
+    exit 1
+  fi
 }
 ```
 
 **`check_env_file()`**:
 ```bash
 check_env_file() {
-  [[ -f .env ]] || { log error ".env file not found - required by convention"; exit 1; }
+  if [[ ! -f .env ]]; then
+    log error ".env file not found - required by convention"
+    log info "Create .env file with service configuration (see documentation for examples)"
+    exit 1
+  fi
 }
 ```
 
@@ -99,6 +136,8 @@ check_service_profiles() {
   if [[ -n "$services_without_profiles" ]]; then
     log error "Services missing profiles: $(echo $services_without_profiles | tr '\n' ' ')"
     log error "All services must have profiles explicitly set - convention violation"
+    log info "Add profiles: [\"default\"] or profiles: [\"all\", \"default\"] to each service"
+    log info "See documentation for service configuration examples"
     exit 1
   fi
 }
