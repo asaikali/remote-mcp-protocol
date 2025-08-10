@@ -26,8 +26,8 @@ This document defines the design constraints for the `compose` script and associ
 - The compose script only works with `compose.yaml` (exact filename) and expects that file to be in the same location as the script itself. No other compose file variants are supported
 - There is only one `compose.yaml` at the root of the repo, and developers cut and paste their containers into it
 - At the same level as the compose script and compose.yaml, there is a folder called `docker`
-- **Service-Based Directory Structure**: Under the `docker` folder, there can be directories organized by service type (e.g., `db/`, `mcp/`, `observability/`)
-- **Optional Service Subdirectories**: Under each service type directory, there can be optional subdirectories for individual services (e.g., `db/postgres/`, `db/pgadmin/`)
+- **Service-Based Directory Structure**: Under the `docker` folder, there can be directories organized by service type (e.g., `db/`, `api/`, `frontend/`, `observability/`)
+- **Optional Service Subdirectories**: Under each service type directory, there can be optional subdirectories for individual services (e.g., `db/postgres/`, `api/backend/`)
 - **Flexible File Organization**: Service configuration files, Dockerfiles, and mount files are organized by service type, with authors of compose.yaml referencing these files as needed
 - **No Script Enforcement**: The compose script does not enforce this directory structure - it's a convention for developers to follow when organizing their Docker-related files
 - We follow whatever policy is set in the docker compose yaml - no restrictions on whether services pull network images or build locally
@@ -115,7 +115,7 @@ Services should follow this field order for consistency and readability:
 
 ### **File Organization Conventions**
 - **Single compose.yaml**: All services in one file at repository root
-- **Service-based docker structure**: `docker/<service-type>/` directories for related files
+- **Service-based docker structure**: `docker/<service-type>/` directories for related files (e.g., `docker/db/`, `docker/api/`)
 - **Environment precedence**: Shell → `.env.local` → `.env` → compose.yaml defaults
 
 **Note**: These are development team conventions - the compose script does NOT enforce these rules.

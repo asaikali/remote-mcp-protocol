@@ -34,9 +34,8 @@
 # SERVICE ORGANIZATION:
 #   - All services start together with `compose up`
 #   - Services are organized into logical groups in the file for readability
-#   - "MCP Services": Model Context Protocol servers and tools
-#   - "Database Services": PostgreSQL and administration tools
-#   - "Observability Services": Monitoring, logging, and tracing stack
+#   - Group services by logical function (databases, APIs, frontend, observability, etc.)
+#   - Use descriptive comments to separate service groups
 #
 # RESTART POLICY:
 #   - Use "restart: unless-stopped" for all services (infrastructure approach)

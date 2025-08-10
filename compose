@@ -175,7 +175,7 @@ Examples:
 
 Environment:
   Override defaults via .env, .env.local, or shell variables
-  Example: MCP_SSE_PORT=5001 compose up
+  Example: PG_PORT=5432 compose up
 EOF
 }
 
