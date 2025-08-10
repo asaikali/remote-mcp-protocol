@@ -28,7 +28,11 @@ Based on the design constraints in `compose-design.md`, here's the implementatio
 - Implement `get_profiles()` function using `docker compose config --profiles`
 - Implement profile parsing to handle:
   - No profiles specified → use "default" profile
+  - "all" profile specified → use all available profiles  
   - Space-separated profiles → use specified profiles
+- Handle reserved profile names:
+  - "default": Explicit profile that developers set on services
+  - "all": Meta-profile that expands to all available profiles (not set on services directly)
 - Add profile validation in service check (ensure all services have profiles)
 
 ## Phase 2: Command Implementation
@@ -43,14 +47,15 @@ Implement commands that wrap docker compose with formatting:
 
 Each command should:
 - Load environment via `load_env()`
-- Parse profiles (default to "default" profile)
+- Parse profiles (default to "default" profile, expand "all" to all available profiles)
 - Add visual dividers showing which profile is being operated on
 - Call `docker compose` with appropriate `--profile` flags
 
 ### 2.2 Custom Commands
 - `clean [profiles...]` - Remove volumes and networks for specified profiles
-- `profiles` - List all available profiles from compose.yaml
+- `profiles` - List all available profiles from compose.yaml (including reserved profiles explanation)
 - `status [profiles...]` - Show connection information using `status.*` labels
+- All custom commands support the "all" meta-profile: `compose status all`, `compose clean all`
 
 ## Phase 3: Status Command Implementation
 
@@ -95,7 +100,8 @@ load_env()
 
 # Profile management
 get_profiles()
-parse_profiles()
+parse_profiles()              # Handle "default", "all", and specific profiles
+expand_all_profile()          # Convert "all" to list of actual profiles
 build_profile_args()
 
 # Docker compose wrapper
@@ -116,18 +122,19 @@ case $cmd in
   up|down|ps|logs|build)
     validate_conventions
     load_env
-    profiles=$(parse_profiles "$@")
-    show_profile_divider "$profiles"
-    docker_compose_with_profiles "$cmd" "$profiles" "${remaining_args[@]}"
+    profiles=$(parse_profiles "$@")           # Handle "default", "all", specific profiles
+    expanded_profiles=$(expand_all_profile "$profiles")  # Convert "all" to actual profiles
+    show_profile_divider "$expanded_profiles"
+    docker_compose_with_profiles "$cmd" "$expanded_profiles" "${remaining_args[@]}"
     ;;
   clean)
-    # Custom implementation for volume/network cleanup
+    # Custom implementation for volume/network cleanup (supports "all" profile)
     ;;
   status)
-    # Custom implementation using label extraction
+    # Custom implementation using label extraction (supports "all" profile)
     ;;
   profiles)
-    # List available profiles
+    # List available profiles + explain reserved profiles ("default", "all")
     ;;
   *)
     show_usage

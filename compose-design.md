@@ -41,8 +41,11 @@ This document defines the design constraints for the `compose` script and associ
 ## Constraint 4 - Profile System
 
 - Every service in the compose file is required to have a profile explicitly set
-- Profile "default" must be explicitly set by developers for services they want in the default profile
+- There are two reserved profile names by convention:
+  - **"default"**: Must be explicitly set by developers for services they want in the default profile
+  - **"all"**: Reserved meta-profile that means all available profiles (not set on services directly)
 - When you type `compose up` (or any compose command without profile specification), it runs all services with the "default" profile
+- When you type `compose up all`, it runs all services across all available profiles
 - Space-separated profile names can be given for specific profile targeting
 - `compose up postgres mcp` means run it on postgres and mcp profiles
 - If users type `docker compose up` directly in the root (without using the script), nothing will start because no profiles are specified - this forces them to use the script or be explicit about profiles
@@ -74,6 +77,7 @@ This document defines the design constraints for the `compose` script and associ
 - `clean` follows same profile behavior: if you run `clean` it applies to the default profile, otherwise it applies to whatever profiles you pass in
 - `status` command prints out all key connection information developers need to connect to services from their apps or access them via UI (uses the `status.*` label system)
 - `profiles` command lists all available profiles (convenience command, same category as status)
+- The reserved "all" profile works with all commands: `compose status all`, `compose clean all`, etc.
 
 ## Constraint 8 - Script Behavior & Error Handling
 
