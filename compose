@@ -249,15 +249,15 @@ usage() {
   printf "Commands:\n"
   # List all available commands with color coding matching their function
   printf "  ${BLUE}build${NC}         Build the MCP everything Docker image\n"
-  printf "  ${GREEN}start${NC}         Start MCP stack containers\n"
+  printf "  ${GREEN}up${NC}            Start MCP stack containers\n"
   printf "  ${BLUE}status${NC}        Show status & connection info\n"
-  printf "  ${YELLOW}stop${NC}          Stop containers\n"
+  printf "  ${YELLOW}down${NC}          Stop containers\n"
   printf "  ${RED}clean${NC}         Stop containers & remove volumes\n"
   printf "  ${YELLOW}fix${NC}           Detect & fix port conflicts\n"
   printf "  ${BLUE}logs${NC}          Show container logs (optionally specify service)\n"
   printf "\nExamples:\n"
   printf "  ./compose build\n"
-  printf "  ./compose start\n"
+  printf "  ./compose up\n"
   printf "  ./compose logs mcp-inspector\n"
   printf "  ./compose logs --tail 50\n"
 }
@@ -297,8 +297,8 @@ case $cmd in
     build_image
     ;;
 
-  # Start command: Start MCP stack containers
-  start)
+  # Up command: Start MCP stack containers
+  up)
     log header "Starting containers"
     # Try to start the containers in detached mode
     if docker_compose up -d; then
@@ -314,8 +314,8 @@ case $cmd in
     fi
     ;;
 
-  # Stop command: Stop the running containers
-  stop)
+  # Down command: Stop the running containers
+  down)
     log header "Stopping containers"
     docker_compose down --remove-orphans  # Stop containers and remove networks and orphans
     ;;
