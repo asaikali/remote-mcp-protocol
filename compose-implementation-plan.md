@@ -32,17 +32,19 @@ Based on the design constraints in `compose-design.md`, here's the implementatio
 
 Before implementing the compose script, the `compose.yaml` and `.env` files must be updated to follow the design constraints.
 
-## Part 1 Current Issues:
+## Part 1 Status: ✅ COMPLETE
 1. **Profile System**: ✅ RESOLVED - Updated to use db, mcp, observability, default, all structure
-2. **Status Labels**: ✅ RESOLVED - Added status.* labels to all services  
-3. **Environment Variables**: ✅ RESOLVED - Using proper ${VAR:-default} syntax with optional .env
+2. **Status Labels**: ✅ RESOLVED - Added status.* labels with enhanced patterns (status.url.*, status.cred.*)
+3. **Environment Variables**: ✅ RESOLVED - Using ${VAR:-default} syntax with optional .env, added image overrides
 4. **File Paths**: ✅ RESOLVED - Updated to use profile-based docker directory structure
+5. **Docker Compose Conventions**: ✅ RESOLVED - Applied field ordering, removed container names, added restart policies
+6. **Visual Organization**: ✅ RESOLVED - Added section separators and comprehensive documentation
 
-## Part 1 SIMPLIFICATION UPDATE:
-**NEW APPROACH**: Make .env optional with compose.yaml defaults
-- `compose.yaml` uses `${VAR:-default}` syntax for built-in defaults
-- `.env` file becomes optional override mechanism
-- Simpler onboarding: `git clone && docker compose up` just works
+## Part 1 Final Result:
+- `compose.yaml` follows all conventions (humans maintain compliance, script doesn't enforce)
+- `.env` is optional with sensible defaults built-in
+- All services have proper profiles, status labels, and dependencies
+- File structure matches profile-based organization
 
 ## Profile-Based Directory Structure (Convention Only):
 **Note**: The `docker/` directory structure follows profile organization but the script does NOT enforce this:
@@ -88,6 +90,23 @@ Before implementing the compose script, the `compose.yaml` and `.env` files must
 
 **⚠️  PART 2 CANNOT BEGIN UNTIL PART 1 IS COMPLETE AND APPROVED ⚠️**
 
+## Script Enforcement Scope
+
+**What the script DOES enforce (validation failures):**
+- `compose.yaml` file exists (exact filename)
+- All services have explicit `profiles: [...]` set
+- Required tools (`docker`, `yq`) are available
+
+**What the script does NOT enforce (human responsibility):**
+- Constraint 4: Docker Compose file conventions (field ordering, container names, restart policies)
+- Environment variable naming patterns (`<SERVICE>_PORT`, `<SERVICE>_IMAGE`, etc.)
+- Status label patterns (`status.url.*`, `status.cred.*`)
+- Service dependencies (`depends_on` relationships)
+- File organization under `docker/` directory
+- Image override usage
+
+**Rationale**: Script stays simple, humans maintain conventions, tool focuses on core functionality
+
 ## Part 2 Phase 1: Core Infrastructure
 **TODO LIST:**
 - [ ] **Script Setup**: Create new `compose` script with proper shebang and error handling (`set -Eeuo pipefail`)
@@ -97,10 +116,11 @@ Before implementing the compose script, the `compose.yaml` and `.env` files must
   - `check_compose_file()` - Check for `compose.yaml` existence (exact filename required)
   - `check_service_profiles()` - Validate all services have profiles set (using yq, fail fast if yq missing)
   - Note: No `check_env_file()` needed - .env is now optional
+  - Note: Script does NOT enforce Constraint 4 conventions (field ordering, container names, restart policies, etc.) - humans maintain these
 
 ## Part 2 Phase 2: Environment and Profile Management
 **TODO LIST:**
-- [ ] **Environment Loading**: Implement `load_env()` function using `set -a` / `source` approach
+- [ ] **Environment Loading**: Implement `load_env()` function using `set -a` / `source` approach (supports .env and .env.local, both optional)
 - [ ] **Profile Discovery**: Implement `get_profiles()` function using `docker compose config --profiles`
 - [ ] **Profile Parsing**: Implement profile parsing logic:
   - No profiles specified → use "default" profile
@@ -123,7 +143,11 @@ Before implementing the compose script, the `compose.yaml` and `.env` files must
 **TODO LIST:**
 - [ ] **Clean Command**: Implement `clean [profiles...]` - Remove volumes and networks
 - [ ] **Profiles Command**: Implement `profiles` - List all available profiles with descriptions
-- [ ] **Status Command**: Implement `status [profiles...]` - Show connection information using `status.*` labels
+- [ ] **Status Command**: Implement `status [profiles...]` - Enhanced to handle status label patterns:
+  - Extract `status.url.*` labels (ui, api, jdbc, grpc, etc.)
+  - Extract `status.cred.*` labels (username, password, etc.)
+  - Handle environment variable interpolation in labels
+  - Display organized connection information per service
 - [ ] **Usage Function**: Implement help/usage display
 
 **`profiles` command output**:
