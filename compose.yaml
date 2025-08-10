@@ -1,3 +1,49 @@
+# =============================================================================
+# Docker Compose File Conventions
+# =============================================================================
+#
+# This file follows specific conventions for consistency and maintainability:
+#
+# SERVICE FIELD ORDER (follow this sequence for all services):
+#   1. profiles      - Service grouping (MUST be explicit for every service)
+#   2. image/build   - Base image or build context
+#   3. depends_on    - Service startup dependencies (if needed)
+#   4. command/entrypoint - Runtime execution overrides (if needed)
+#   5. environment   - Configuration via environment variables
+#   6. ports         - Network port mappings (often reference env vars)
+#   7. volumes       - Data persistence and config file mounts
+#   8. networks      - Network configuration (if custom networks needed)
+#   9. restart       - Container restart policy
+#   10. labels       - Metadata for tooling and status information
+#
+# ENVIRONMENT VARIABLES:
+#   - All configurable values use ${VAR:-default} syntax
+#   - Port variables: <SERVICE>_PORT (e.g., PG_PORT, GRAFANA_PORT)
+#   - Image variables: <SERVICE>_IMAGE (e.g., POSTGRES_IMAGE, GRAFANA_IMAGE)
+#   - Credential variables: <SERVICE>_CRED_<TYPE> (e.g., PG_CRED_USERNAME)
+#   - Override via .env, .env.local, or shell environment
+#
+# PROFILE SYSTEM:
+#   - Every service MUST have explicit profiles set
+#   - "default": Services for daily development (mcp + db services)
+#   - "all": All services including observability stack
+#   - "db": Database services only (postgres, pgadmin)
+#   - "mcp": MCP services only (everything-sse, everything-streamable, mcp-inspector)
+#   - "observability": Observability services only (grafana, prometheus, loki, tempo, otel-collector)
+#
+# NAMING CONVENTIONS:
+#   - No explicit container_name - let Docker Compose auto-generate
+#   - Use descriptive service names that match their function
+#   - Prefer named volumes over bind mounts for data persistence
+#   - Add :ro flag for read-only mounts
+#
+# STATUS LABELS:
+#   - status.url.<type> for connection URLs (ui, api, jdbc, etc.)
+#   - status.cred.<type> for credential information (username, password, etc.)
+#   - Include environment variable defaults in labels for proper resolution
+#
+# =============================================================================
+
 services:
   # MCP Services
   everything-sse:
