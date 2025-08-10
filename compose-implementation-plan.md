@@ -65,9 +65,16 @@ Implement commands that wrap docker compose with formatting:
 Each command should:
 - Load environment via `load_env()`
 - Parse profiles (default to "default" profile, "all" is treated as a regular profile)
-- Add visual dividers showing which profile is being operated on
+- Add visual dividers showing which profile is being operated on (colored headers for easy scanning)
 - Call `docker compose` with appropriate `--profile` flags
 - **For `up` command**: Add port conflict detection if docker compose fails
+
+**Visual divider examples**:
+```bash
+== Starting containers (db profile) ==
+== Container Status (all profiles) ==  
+== Stopping containers (observability profile) ==
+```
 
 ### 2.2 Custom Commands
 - `clean [profiles...]` - Remove volumes and networks for specified profiles
@@ -108,34 +115,32 @@ clean)
   - `status.cred.*` - Credential information
 
 ### 3.2 Status Display
-**`extract_status_labels()` implementation**:
+**Simple inline implementation** (no separate functions needed):
 ```bash
-extract_status_labels() {
-  local profile="$1"
-  # Get all running containers for the specified profile
-  local containers=$(docker_compose "$profile" ps -q)
+status)
+  validate_conventions
+  load_env
+  profiles=$(parse_profiles "$@")
+  log header "Container Status ($profiles profile)" "blue"
   
+  local containers=$(docker_compose "$profiles" ps -q)
   for container in $containers; do
-    # Extract all labels from the container
-    local labels=$(docker inspect "$container" --format '{{range $key, $value := .Config.Labels}}{{$key}}={{$value}}{{"\n"}}{{end}}')
-    
-    # Filter for status.* labels only
-    local status_labels=$(echo "$labels" | grep '^status\.')
+    local container_name=$(docker inspect "$container" --format '{{.Name}}' | sed 's/^.//')
+    local status_labels=$(docker inspect "$container" --format '{{range $key, $value := .Config.Labels}}{{if hasPrefix $key "status."}}{{$key}}={{$value}}{{"\n"}}{{end}}{{end}}')
     
     if [[ -n "$status_labels" ]]; then
-      local container_name=$(docker inspect "$container" --format '{{.Name}}' | sed 's/^.//')
-      echo "Container: $container_name"
-      echo "$status_labels"
       echo
+      echo "$container_name:"
+      echo "$status_labels"
     fi
   done
-}
+  ;;
 ```
 
 **Status Command Behavior**:
 - Get all running containers for specified profile
-- Use `docker inspect` to extract labels from each container
-- Filter for `status.*` labels only (ignore Docker's own labels)
+- Use `docker inspect` to extract labels from each container with Go template filtering
+- Display raw `status.*` labels (whatever convention maintainers put in compose.yaml)
 - Display status info per container individually
 - **No scaled container support**: Script assumes 1 container per service (scaling not supported)
 
@@ -251,12 +256,8 @@ docker_compose_with_profiles()
 # Common error troubleshooting
 detect_port_conflicts()    # Check for port conflicts and show project directories
 
-# Status/label handling
-extract_status_labels()    # Pull status.* labels from running containers
-format_status_output()     # Format connection info nicely
-
 # Utilities
-log()                      # Colored logging function
+log()                      # Colored logging function (with optional color parameter)
 show_profile_divider()     # Visual separator for profile operations
 ```
 
@@ -291,7 +292,22 @@ case $cmd in
     docker_compose_with_profiles "down" "$profiles" "-v" "--remove-orphans"
     ;;
   status)
-    # Custom implementation using label extraction
+    validate_conventions
+    load_env
+    profiles=$(parse_profiles "$@")
+    log header "Container Status ($profiles profile)" "blue"
+    
+    local containers=$(docker_compose "$profiles" ps -q)
+    for container in $containers; do
+      local container_name=$(docker inspect "$container" --format '{{.Name}}' | sed 's/^.//')
+      local status_labels=$(docker inspect "$container" --format '{{range $key, $value := .Config.Labels}}{{if hasPrefix $key "status."}}{{$key}}={{$value}}{{"\n"}}{{end}}{{end}}')
+      
+      if [[ -n "$status_labels" ]]; then
+        echo
+        echo "$container_name:"
+        echo "$status_labels"
+      fi
+    done
     ;;
   profiles)
     # Get available profiles from compose.yaml
