@@ -108,6 +108,15 @@ Services should follow this field order for consistency and readability:
 - **Volume naming**: Prefer named volumes over bind mounts for data persistence
 - **Network isolation**: Let Docker Compose create default networks automatically
 
+### **Restart Policy Recommendations**
+- **Infrastructure approach**: Use `restart: unless-stopped` for stable services (databases, observability, established applications)
+  - **Benefits**: Survives Docker daemon restarts, consistent behavior, reliable development environment
+  - **Respects manual control**: Still allows `docker compose stop/down` to work normally
+- **Development approach**: Omit restart policy for actively developed services
+  - **Benefits**: Crashes are immediately visible, better for debugging, works well with `--abort-on-container-exit`
+  - **Use case**: Services under active development where you want to notice failures immediately
+- **Choose consistently**: Pick one approach per project based on development workflow needs
+
 ### **File Organization Conventions**
 - **Single compose.yaml**: All services in one file at repository root
 - **Profile-based docker structure**: `docker/<profile>/` directories for related files
