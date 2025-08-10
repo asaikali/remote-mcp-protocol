@@ -26,94 +26,92 @@ Based on the design constraints in `compose-design.md`, here's the implementatio
 - **Script Location**: `compose` script at repo root (added to PATH via direnv)
 - **Profile Edge Cases**: Let humans/docker compose handle invalid profiles (no validation)
 
-## CRITICAL PREREQUISITE: Convention Compliance
+# PART 1: Convention Compliance
 
-**🚨 CANNOT PROCEED WITHOUT USER APPROVAL 🚨**
+**🚨 CANNOT PROCEED TO PART 2 WITHOUT USER APPROVAL 🚨**
 
-Before implementing the compose script, the `compose.yaml` and `.env` files must be updated to follow the design constraints. The current files do not comply with the established conventions:
+Before implementing the compose script, the `compose.yaml` and `.env` files must be updated to follow the design constraints.
 
-### Current Issues:
+## Part 1 Current Issues:
 1. **Profile System**: Current `compose.yaml` uses `["mcp"]`, `["postgres"]`, `["observability"]` but constraints require `["default", "all"]` profiles
 2. **Missing Status Labels**: No `status.*` labels in services for connection information
 3. **Missing .env File**: Environment variables are defined inline with defaults, but convention requires separate `.env` file
 4. **Environment Variable Names**: Need to verify all variables follow `<SERVICE_NAME>_*` naming convention
 
-### Required Changes:
-1. Update all services to use proper profile system (`["default", "all"]` combinations)
-2. Add `status.*` labels to all services for connection information
-3. Create `.env` file with proper environment variable naming conventions
-4. Ensure environment variable interpolation follows constraints
+## Part 1 Phase 1: Profile System Decision
+**TODO LIST:**
+- [ ] **Decision Required**: Determine profile approach:
+  - Option A: Replace current profiles with `["default", "all"]` system
+  - Option B: Keep current profiles (`mcp`, `postgres`, `observability`) and update constraints
+  - Option C: Hybrid approach - services have both `["default", "all"]` AND specific profiles
+- [ ] **User Approval**: Get explicit approval on chosen profile approach
 
-**Implementation cannot proceed until:**
-- [ ] `compose.yaml` updated with proper profiles and status labels
-- [ ] `.env` file created with proper naming conventions  
-- [ ] User reviews and approves convention compliance
-- [ ] User confirms approach for profile system (see questions above)
+## Part 1 Phase 2: Environment Variables
+**TODO LIST:**
+- [ ] **Analyze Current Variables**: Review current `${VAR:-default}` patterns in compose.yaml
+- [ ] **Verify Naming**: Ensure all variables follow `<SERVICE_NAME>_*` convention
+- [ ] **Create .env File**: Extract defaults from compose.yaml into separate `.env` file
+- [ ] **Update compose.yaml**: Remove inline defaults, use pure `${VAR}` interpolation
+- [ ] **User Review**: Get approval on `.env` file contents and structure
 
-## Phase 1: Core Infrastructure
+## Part 1 Phase 3: Status Labels
+**TODO LIST:**
+- [ ] **Add MCP Labels**: Add `status.*` labels to MCP services (everything-sse, everything-streamable, mcp-inspector)
+- [ ] **Add PostgreSQL Labels**: Add `status.*` labels to PostgreSQL services (postgres, pgadmin)
+- [ ] **Add Observability Labels**: Add `status.*` labels to observability services (grafana, prometheus, loki, tempo, otel-collector)
+- [ ] **Follow Conventions**: Use `status.url.*` and `status.cred.*` patterns with environment variable interpolation
+- [ ] **User Review**: Get approval on label structure and content
 
-### 1.1 Basic Script Structure
-- Create new `compose` script with proper shebang and error handling (`set -Eeuo pipefail`)
-- Implement basic logging functions with simple ANSI colors
-- Add dependency checks: require `docker` and `yq` commands
-- Add convention validation functions:
+## Part 1 Phase 4: Final Validation
+**TODO LIST:**
+- [ ] **Convention Check**: Verify all services have profiles set
+- [ ] **Environment Check**: Verify `.env` file exists and follows naming conventions
+- [ ] **Label Check**: Verify all services have appropriate `status.*` labels
+- [ ] **User Approval**: Get final approval on convention compliance before proceeding to Part 2
+
+---
+
+# PART 2: Compose Script Implementation
+
+**⚠️  PART 2 CANNOT BEGIN UNTIL PART 1 IS COMPLETE AND APPROVED ⚠️**
+
+## Part 2 Phase 1: Core Infrastructure
+**TODO LIST:**
+- [ ] **Script Setup**: Create new `compose` script with proper shebang and error handling (`set -Eeuo pipefail`)
+- [ ] **Logging Functions**: Implement basic logging functions with simple ANSI colors
+- [ ] **Dependency Checks**: Add checks for required commands (`docker` and `yq`)
+- [ ] **Convention Validation**: Implement validation functions:
   - `check_compose_file()` - Check for `compose.yaml` existence (exact filename required)
-  - `check_env_file()` - Check for `.env` existence (required by convention)
+  - `check_env_file()` - Check for `.env` existence (required by convention)  
   - `check_service_profiles()` - Validate all services have profiles set (using yq, fail fast if yq missing)
 
-### 1.2 Environment Loading
-- Implement the `load_env()` function using the `set -a` / `source` approach:
-  ```bash
-  load_env() {
-    set -a
-    [[ -f .env ]] && source .env
-    [[ -f .env.local ]] && source .env.local  
-    set +a
-  }
-  ```
-- This leverages Docker Compose's built-in environment handling
-
-### 1.3 Profile Management
-- Implement `get_profiles()` function using `docker compose config --profiles`
-- Implement profile parsing to handle:
+## Part 2 Phase 2: Environment and Profile Management
+**TODO LIST:**
+- [ ] **Environment Loading**: Implement `load_env()` function using `set -a` / `source` approach
+- [ ] **Profile Discovery**: Implement `get_profiles()` function using `docker compose config --profiles`
+- [ ] **Profile Parsing**: Implement profile parsing logic:
   - No profiles specified → use "default" profile
-  - Specific profiles specified → use those profiles (including "all" and "default")
+  - Specific profiles specified → use those profiles
   - Space-separated profiles → use specified profiles
-- Handle reserved profile names (both are real profiles in compose.yaml):
-  - "default": Explicit profile that developers set on services for default development environment
-  - "all": Explicit profile that developers set on services that should run when everything is needed
-- Most services will have both profiles: `profiles: ["all", "default"]` (explicit, no inheritance)
-- Add profile validation in service check (ensure all services have profiles)
+- [ ] **Docker Compose Wrapper**: Create `docker_compose_with_profiles()` helper function
 
-## Phase 2: Command Implementation
+## Part 2 Phase 3: Basic Commands
+**TODO LIST:**
+- [ ] **Docker Compose Wrappers**: Implement commands that wrap docker compose:
+  - `up [profiles...]` - Start services with profile filtering
+  - `down [profiles...]` - Stop services with profile filtering
+  - `ps [profiles...]` - Show container status with profile filtering
+  - `logs [profiles...]` - Show logs with profile filtering
+  - `build [profiles...]` - Build images with profile filtering
+- [ ] **Visual Headers**: Add colored dividers showing which profile is being operated on
+- [ ] **Error Handling**: Add port conflict detection for `up` command failures
 
-### 2.1 Docker Compose Wrapper Commands
-Implement commands that wrap docker compose with formatting:
-- `up [profiles...]` - Start services with profile filtering
-- `down [profiles...]` - Stop services with profile filtering  
-- `ps [profiles...]` - Show container status with profile filtering
-- `logs [profiles...]` - Show logs with profile filtering
-- `build [profiles...]` - Build images with profile filtering
-
-Each command should:
-- Load environment via `load_env()`
-- Parse profiles (default to "default" profile, "all" is treated as a regular profile)
-- Add visual dividers showing which profile is being operated on (colored headers for easy scanning)
-- Call `docker compose` with appropriate `--profile` flags
-- **For `up` command**: Add port conflict detection if docker compose fails
-
-**Visual divider examples**:
-```bash
-== Starting containers (db profile) ==
-== Container Status (all profiles) ==  
-== Stopping containers (observability profile) ==
-```
-
-### 2.2 Custom Commands
-- `clean [profiles...]` - Remove volumes and networks for specified profiles
-- `profiles` - List all available profiles from compose.yaml (explain "default" and "all" conventions)
-- `status [profiles...]` - Show connection information using `status.*` labels
-- All custom commands treat "all" and "default" as regular profiles (no special expansion logic)
+## Part 2 Phase 4: Custom Commands
+**TODO LIST:**
+- [ ] **Clean Command**: Implement `clean [profiles...]` - Remove volumes and networks
+- [ ] **Profiles Command**: Implement `profiles` - List all available profiles with descriptions
+- [ ] **Status Command**: Implement `status [profiles...]` - Show connection information using `status.*` labels
+- [ ] **Usage Function**: Implement help/usage display
 
 **`profiles` command output**:
 ```bash
