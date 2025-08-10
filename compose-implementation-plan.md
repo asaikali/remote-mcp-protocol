@@ -12,21 +12,30 @@ Based on the design constraints in `compose-design.md`, here's the implementatio
 - **Script Users Get Simple Commands**: Just the essential commands with basic output
 - **No Advanced Features**: Keep the script focused on core functionality only
 
-### **Implementation Priorities**
+### **Implementation Priorities & Decisions**
 1. **Simplicity Over Features**: Resist adding complex output or advanced debugging
 2. **Basic Validation**: Simple pass/fail convention checking
 3. **Standard Docker Compose Output**: Let docker compose provide the detailed output
 4. **Minimal Script Logic**: Keep bash code simple and maintainable
 
+### **Implementation Decisions**
+- **Colors**: Use simple ANSI color codes (not external color libraries)
+- **yq Dependency**: Assume `yq` is installed, fail fast with clear message if missing
+- **Error Handling**: Exit immediately on each validation failure (simplest approach)
+- **Docker Compose**: Use v2 only (`docker compose`, not `docker-compose`)
+- **Script Location**: `compose` script at repo root (added to PATH via direnv)
+- **Profile Edge Cases**: Let humans/docker compose handle invalid profiles (no validation)
+
 ## Phase 1: Core Infrastructure
 
 ### 1.1 Basic Script Structure
 - Create new `compose` script with proper shebang and error handling (`set -Eeuo pipefail`)
-- Implement basic logging functions with colors
+- Implement basic logging functions with simple ANSI colors
+- Add dependency checks: require `docker` and `yq` commands
 - Add convention validation functions:
   - `check_compose_file()` - Check for `compose.yaml` existence (exact filename required)
   - `check_env_file()` - Check for `.env` existence (required by convention)
-  - `check_service_profiles()` - Validate all services have profiles set (using yq)
+  - `check_service_profiles()` - Validate all services have profiles set (using yq, fail fast if yq missing)
 
 ### 1.2 Environment Loading
 - Implement the `load_env()` function using the `set -a` / `source` approach:
