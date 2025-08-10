@@ -84,6 +84,22 @@ This document defines the design constraints for the `compose` script and associ
 - **Rationale**: Auto-generated names prevent conflicts and work well with scaling
 - **Exception**: Only set `container_name` when external systems need a specific name
 
+### **Service Field Ordering Convention**
+Services should follow this field order for consistency and readability:
+
+1. **`profiles`** - Service grouping (MUST be explicit for every service)
+2. **`image` / `build`** - Base image or build context (choose one, image first if not building locally)  
+3. **`depends_on`** - Service startup dependencies (startup order at a glance)
+4. **`command` / `entrypoint`** - Runtime execution overrides (if needed)
+5. **`environment`** - Configuration via environment variables 
+6. **`ports`** - Network port mappings (often reference env vars, so after environment)
+7. **`volumes`** - Data persistence and config file mounts
+8. **`networks`** - Network configuration (if custom networks needed)
+9. **`restart`** - Container restart policy
+10. **`labels`** - Metadata for tooling and status information (grouped at end)
+
+**Rationale**: This order follows information priority - essential identity first (profiles, image), then dependencies, configuration, persistence, and finally metadata.
+
 ### **Service Configuration Best Practices**
 - **Use environment variable defaults**: `${VAR:-default}` for all configurable values
 - **Profile requirement**: Every service MUST have explicit `profiles: [...]` set

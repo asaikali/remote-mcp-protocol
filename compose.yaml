@@ -1,9 +1,3 @@
-volumes:
-  postgres:
-  pgadmin:
-  loki:
-  prometheus:
-
 services:
   # MCP Services
   everything-sse:
@@ -46,7 +40,7 @@ services:
       - "status.url.ui=http://localhost:${MCP_INSPECTOR_PORT:-6274}"
       - "status.url.websocket=ws://localhost:${MCP_INSPECTOR_WS_PORT:-6277}"
 
-  # PostgreSQL Services
+  # Database Services
   postgres:
     profiles: ["db", "default", "all"]
     image: "${POSTGRES_IMAGE:-postgres:17}"
@@ -54,11 +48,11 @@ services:
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "password"
       PGDATA: "/data/postgres"
-    volumes:
-      - postgres:/data/postgres
-      - ./docker/db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "${PG_PORT:-15432}:5432"  # PostgreSQL port, configurable via PG_PORT
+    volumes:
+      - postgres:/data/postgres
+      - ./docker/db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: unless-stopped
     labels:
       - "status.url.jdbc=jdbc:postgresql://localhost:${PG_PORT:-15432}/mcp_dev"
@@ -68,21 +62,23 @@ services:
 
   pgadmin:
     profiles: ["db", "default", "all"]
-    image: "${PGADMIN_IMAGE:-dpage/pgladmin4:9.6}"
+    image: "${PGADMIN_IMAGE:-dpage/pgadmin4:9.6}"
+    depends_on:
+      - postgres
+    entrypoint:
+      - "/bin/sh"
+      - "-c"
+      - "/bin/echo 'postgres:5432:*:postgres:password' > /tmp/pgpassfile && chmod 600 /tmp/pgpassfile && /entrypoint.sh"
     environment:
       PGADMIN_DEFAULT_EMAIL: "admin@example.com"
       PGADMIN_DEFAULT_PASSWORD: "admin"
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
-    volumes:
-      - pgadmin:/var/lib/pgadmin
-      - ./docker/db/pgadmin/pgadmin_servers.json:/pgadmin4/servers.json
     ports:
       - "${PGADMIN_PORT:-15433}:80"  # pgAdmin port, configurable via PGADMIN_PORT
-    entrypoint:
-      - "/bin/sh"
-      - "-c"
-      - "/bin/echo 'postgres:5432:*:postgres:password' > /tmp/pgpassfile && chmod 600 /tmp/pgpassfile && /entrypoint.sh"
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+      - ./docker/db/pgadmin/pgadmin_servers.json:/pgadmin4/servers.json:ro
     restart: unless-stopped
     labels:
       - "status.url.ui=http://localhost:${PGADMIN_PORT:-15433}"
@@ -92,13 +88,13 @@ services:
   # Observability Services
   loki:
     profiles: ["observability", "all"]
-    image: ${LOKI_IMAGE:-grafana/loki:3.5.0}
+    image: "${LOKI_IMAGE:-grafana/loki:3.5.0}"
     command:
       - -config.file=/etc/loki/local-config.yaml
-    volumes:
-      - loki:/loki
     ports:
       - "${LOKI_PORT:-3100}:3100"  # Loki HTTP API, configurable via LOKI_PORT
+    volumes:
+      - loki:/loki
     restart: unless-stopped
     labels:
       - "status.url.http=http://localhost:${LOKI_PORT:-3100}/metrics"
@@ -106,14 +102,14 @@ services:
 
   tempo:
     profiles: ["observability", "all"]
-    image: ${TEMPO_IMAGE:-grafana/tempo:2.7.2}
+    image: "${TEMPO_IMAGE:-grafana/tempo:2.7.2}"
     command:
       - -config.file=/etc/tempo.yaml
-    volumes:
-      - ./docker/observability/config/tempo.yaml:/etc/tempo.yaml:ro
     ports:
       - "${TEMPO_PORT:-3200}:3200"  # Tempo OTLP HTTP, configurable via TEMPO_PORT
       - "${TEMPO_ZIPKIN_PORT:-9411}:9411"  # Tempo Zipkin HTTP, configurable via TEMPO_ZIPKIN_PORT
+    volumes:
+      - ./docker/observability/config/tempo.yaml:/etc/tempo.yaml:ro
     restart: unless-stopped
     labels:
       - "status.url.otlp=http://localhost:${TEMPO_PORT:-3200}"
@@ -121,14 +117,14 @@ services:
 
   otel-collector:
     profiles: ["observability", "all"]
-    image: ${OTEL_COLLECTOR_IMAGE:-ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.125.0}
-    volumes:
-      - ./docker/observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
+    image: "${OTEL_COLLECTOR_IMAGE:-ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.125.0}"
     command:
       - "--config=/etc/otel/config.yaml"
     ports:
       - "${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317"  # OTLP gRPC, configurable via OTEL_COLLECTOR_GRPC_PORT
       - "${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318"  # OTLP HTTP, configurable via OTEL_COLLECTOR_HTTP_PORT
+    volumes:
+      - ./docker/observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
     restart: unless-stopped
     labels:
       - "status.url.grpc=grpc://localhost:${OTEL_COLLECTOR_GRPC_PORT:-4317}"
@@ -136,18 +132,18 @@ services:
 
   prometheus:
     profiles: ["observability", "all"]
-    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.3.1}
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
+    image: "${PROMETHEUS_IMAGE:-prom/prometheus:v3.3.1}"
     command:
       - --enable-feature=exemplar-storage
       - --web.enable-remote-write-receiver
       - --config.file=/etc/prometheus/prometheus.yaml
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"  # Prometheus Web UI, configurable via PROMETHEUS_PORT
     volumes:
       - prometheus:/prometheus
       - ./docker/observability/config/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
-    ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"  # Prometheus Web UI, configurable via PROMETHEUS_PORT
     restart: unless-stopped
     labels:
       - "status.url.ui=http://localhost:${PROMETHEUS_PORT:-9090}"
@@ -155,21 +151,26 @@ services:
 
   grafana:
     profiles: ["observability", "all"]
-    image: ${GRAFANA_IMAGE:-grafana/grafana:12.0.0}
+    image: "${GRAFANA_IMAGE:-grafana/grafana:12.0.0}"
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"  # Grafana Web UI, configurable via GRAFANA_PORT
     volumes:
       - ./docker/observability/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
       - ./docker/observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./docker/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./docker/observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
-    ports:
-      - "${GRAFANA_PORT:-3000}:3000"  # Grafana Web UI, configurable via GRAFANA_PORT
     restart: unless-stopped
     labels:
       - "status.url.ui=http://localhost:${GRAFANA_PORT:-3000}"
       - "status.cred.anonymous=enabled (admin access)"
 
-
+# Top-level volumes declared at end for visibility
+volumes:
+  postgres:
+  pgadmin:
+  loki:
+  prometheus:
