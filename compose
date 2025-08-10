@@ -168,22 +168,22 @@ show_profile_divider() {
 }
 
 #------------------------------------------------------------------------------
-# Service Status Processing
+# Service Info Processing
 #------------------------------------------------------------------------------
-process_service_status_json() {
+process_service_info_json() {
     local service="$1"
-    local status_json="$2"
+    local info_json="$2"
     
     # Extract title
     local title
-    title=$(echo "$status_json" | jq -r '.title // empty')
+    title=$(echo "$info_json" | jq -r '.title // empty')
     
     if [[ -n "$title" ]]; then
         log success "$title"
         
         # Show URLs
         local urls
-        urls=$(echo "$status_json" | jq -r '.url // {} | to_entries[] | "\(.key): \(.value)"' 2>/dev/null || true)
+        urls=$(echo "$info_json" | jq -r '.url // {} | to_entries[] | "\(.key): \(.value)"' 2>/dev/null || true)
         if [[ -n "$urls" ]]; then
             while IFS= read -r url_line; do
                 printf "    → %s\n" "$url_line"
@@ -192,7 +192,7 @@ process_service_status_json() {
         
         # Show credentials
         local creds
-        creds=$(echo "$status_json" | jq -r '.cred // {} | to_entries[] | "\(.key): \(.value)"' 2>/dev/null || true)
+        creds=$(echo "$info_json" | jq -r '.cred // {} | to_entries[] | "\(.key): \(.value)"' 2>/dev/null || true)
         if [[ -n "$creds" ]]; then
             while IFS= read -r cred_line; do
                 printf "    → %s\n" "$cred_line"
@@ -217,7 +217,7 @@ Commands:
   logs [profiles...]    Show service logs (-f for follow)
   build [profiles...]   Build service images
   clean [profiles...]   Stop services and remove volumes
-  status [profiles...]  Show connection information
+  info                  Show connection information for all services
   profiles              List available profiles
 
 Profiles:
@@ -231,7 +231,7 @@ Examples:
   compose up                    # Start default services
   compose up all                # Start all services
   compose up db observability   # Start specific profiles
-  compose status                # Show default service status
+  compose info                  # Show all service connection information
   compose clean all             # Remove all services and volumes
   compose logs mcp -f           # Follow MCP service logs
 
@@ -288,21 +288,19 @@ main() {
             log success "Cleanup completed"
             ;;
             
-        status)
-            local profiles
-            profiles=$(parse_profiles "$@")
-            show_profile_divider "$profiles" "Status"
+        info)
+            log header "Service Connection Information"
             
-            # Get structured status data using jq
+            # Get all services from all profiles using docker compose config
             local services_json
-            services_json=$(docker_compose_with_profiles "config" "$profiles" --format json | jq '.services
+            services_json=$(docker compose --profile all config --format json 2>/dev/null | jq '.services
                            | to_entries
                            | map({
                                service: .key,
-                               status:
+                               info:
                                  ((.value.labels // {})
                                   | to_entries
-                                  | map(select(.key|startswith("status.")))
+                                  | map(select(.key|startswith("info.")))
                                   | map({path: (.key | split(".")[1:]), value: .value})
                                   | reduce .[] as $i ({}; setpath($i.path; $i.value))
                                  )
@@ -312,11 +310,11 @@ main() {
                 echo
                 
                 # Process each service
-                echo "$services_json" | jq -r '.[] | select(.status.title) | "\(.service)\t\(.status | @json)"' | while IFS=$'\t' read -r service status_json; do
-                    process_service_status_json "$service" "$status_json"
+                echo "$services_json" | jq -r '.[] | select(.info.title) | "\(.service)\t\(.info | @json)"' | while IFS=$'\t' read -r service info_json; do
+                    process_service_info_json "$service" "$info_json"
                 done
             else
-                log warn "No services found for specified profile(s)"
+                log warn "No services found"
             fi
             ;;
             
