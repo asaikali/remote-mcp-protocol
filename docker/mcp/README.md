@@ -82,13 +82,66 @@ mcp-inspector:
 **Container-to-Host**: Use `host.docker.internal` to connect from containers to services running on your host machine
 - Example: `http://host.docker.internal:3001`
 
-## Usage with MCP Inspector
+## Using the MCP Inspector
+
+The MCP Inspector is a web-based tool for testing and debugging MCP server connections. Understanding network connectivity is crucial for successful connections.
+
+### Quick Start
 
 1. **Start services**: `compose up` (from parent directory)
 2. **Open inspector**: http://localhost:6274  
-3. **Connect to servers**:
-   - **Containerized servers**: Use `http://everything-sse:3001` or `http://everything-streamable:3001`
-   - **Host-running servers**: Use `http://host.docker.internal:PORT`
+3. **Connect to MCP servers** using the appropriate URLs below
+
+### Understanding Network Connectivity
+
+**Key Concept**: The MCP Inspector runs inside a Docker container, so it needs to use Docker network addresses to reach other services, not `localhost`.
+
+#### Connecting to Containerized MCP Servers
+
+When connecting to MCP servers that are also running in Docker containers, use Docker's internal service names:
+
+**SSE Server Connection**:
+- ❌ **Wrong**: `http://localhost:3001/sse` (Inspector can't reach localhost)
+- ✅ **Correct**: `http://everything-sse:3001/sse` (Docker service name)
+
+**Streamable Server Connection**:  
+- ❌ **Wrong**: `http://localhost:4001/mcp` (Inspector can't reach localhost)
+- ✅ **Correct**: `http://everything-streamable:3001/mcp` (Docker service name + internal port)
+
+**Why this works**: Docker Compose creates internal DNS entries for each service, allowing containers to communicate using service names.
+
+#### Connecting to Host-Running MCP Servers
+
+If you're running MCP servers on your host machine (outside Docker), use the special Docker hostname:
+
+**Host Server Connection**:
+- ✅ **Correct**: `http://host.docker.internal:3001/mcp` (Connect to port on your Mac)
+- ✅ **Correct**: `http://host.docker.internal:8080/api` (Any port on your host)
+
+**Why this works**: `host.docker.internal` is a special hostname that Docker provides to access services running on the host machine from inside containers.
+
+### Connection Examples
+
+**Testing Containerized Servers**:
+1. Open Inspector: http://localhost:6274
+2. In the connection form, enter: `http://everything-sse:3001/sse`
+3. Click "Connect" to test the SSE server
+
+**Testing Host-Running Servers**:
+1. Start your MCP server on your Mac (e.g., port 8080)
+2. In the Inspector, enter: `http://host.docker.internal:8080/mcp`  
+3. Click "Connect" to test your server
+
+### Troubleshooting Connections
+
+**"Connection refused" errors**: 
+- Verify the MCP server is actually running (`compose ps` for containerized servers)
+- Check you're using the correct URL format (service names for containers, `host.docker.internal` for host)
+- Ensure ports are correctly mapped in compose.yaml
+
+**"Service not found" errors**:
+- Use `docker network ls` and `docker network inspect` to verify service names
+- Confirm all services are on the same Docker network
 
 ## Customization
 
