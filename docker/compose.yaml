@@ -74,7 +74,7 @@ services:
   # ==========================================================================
   everything-sse:
     build:
-      context: ./docker/mcp
+      context: ./mcp
       dockerfile: Dockerfile
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "sse"]
@@ -89,7 +89,7 @@ services:
 
   everything-streamable:
     build:
-      context: ./docker/mcp
+      context: ./mcp
       dockerfile: Dockerfile
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "streamableHttp"]
@@ -104,7 +104,7 @@ services:
 
   mcp-inspector:
     build:
-      context: ./docker/mcp
+      context: ./mcp
       dockerfile: Dockerfile
     image: mcp-everything:latest
     command: ["/app/entry-point.sh", "inspector"]
@@ -131,7 +131,7 @@ services:
       - "${PG_PORT:-15432}:5432"  # PostgreSQL port, configurable via PG_PORT
     volumes:
       - postgres:/data/postgres
-      - ./docker/db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: unless-stopped
     labels:
       - "info.group=Database Services"
@@ -158,7 +158,7 @@ services:
       - "${PGADMIN_PORT:-15433}:80"  # pgAdmin port, configurable via PGADMIN_PORT
     volumes:
       - pgadmin:/var/lib/pgadmin
-      - ./docker/db/pgadmin/pgadmin_servers.json:/pgadmin4/servers.json:ro
+      - ./postgres/pgadmin_servers.json:/pgadmin4/servers.json:ro
     restart: unless-stopped
     labels:
       - "info.group=Database Services"
@@ -193,7 +193,7 @@ services:
       - "${TEMPO_PORT:-3200}:3200"  # Tempo OTLP HTTP, configurable via TEMPO_PORT
       - "${TEMPO_ZIPKIN_PORT:-9411}:9411"  # Tempo Zipkin HTTP, configurable via TEMPO_ZIPKIN_PORT
     volumes:
-      - ./docker/observability/config/tempo.yaml:/etc/tempo.yaml:ro
+      - ./observability/config/tempo.yaml:/etc/tempo.yaml:ro
     restart: unless-stopped
     labels:
       - "info.group=Observability Services"
@@ -213,7 +213,7 @@ services:
       - "${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317"  # OTLP gRPC, configurable via OTEL_COLLECTOR_GRPC_PORT
       - "${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318"  # OTLP HTTP, configurable via OTEL_COLLECTOR_HTTP_PORT
     volumes:
-      - ./docker/observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
+      - ./observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
     restart: unless-stopped
     labels:
       - "info.group=Observability Services"
@@ -233,7 +233,7 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"  # Prometheus Web UI, configurable via PROMETHEUS_PORT
     volumes:
       - prometheus:/prometheus
-      - ./docker/observability/config/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./observability/config/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
     restart: unless-stopped
     labels:
       - "info.group=Observability Services"
@@ -252,10 +252,10 @@ services:
     ports:
       - "${GRAFANA_PORT:-3000}:3000"  # Grafana Web UI, configurable via GRAFANA_PORT
     volumes:
-      - ./docker/observability/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./docker/observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./docker/observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./docker/observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
+      - ./observability/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
     restart: unless-stopped
     labels:
       - "info.group=Observability Services"

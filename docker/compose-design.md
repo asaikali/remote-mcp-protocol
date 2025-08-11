@@ -22,12 +22,11 @@ This document defines the design constraints for the `compose` script and associ
 ## Constraint 1 - File Structure & Dependencies
 
 - **Required Dependencies**: The compose script requires `docker`, `yq`, and `jq` to be installed and available in PATH
-- There is only one script called `compose` at the root of the repo
-- The compose script only works with `compose.yaml` (exact filename) and expects that file to be in the same location as the script itself. No other compose file variants are supported
-- There is only one `compose.yaml` at the root of the repo, and developers cut and paste their containers into it
-- At the same level as the compose script and compose.yaml, there is a folder called `docker`
-- **Service-Based Directory Structure**: Under the `docker` folder, there can be directories organized by service type (e.g., `db/`, `api/`, `frontend/`, `observability/`)
-- **Optional Service Subdirectories**: Under each service type directory, there can be optional subdirectories for individual services (e.g., `db/postgres/`, `api/backend/`)
+- There is only one script called `compose` in the `docker/` directory  
+- The compose script only works with `compose.yaml` (exact filename) and expects that file to be in the same `docker/` directory. No other compose file variants are supported
+- There is only one `compose.yaml` in the `docker/` directory, and developers cut and paste their containers into it
+- **Service-Based Directory Structure**: Within the `docker/` directory, there can be subdirectories organized by service type (e.g., `mcp/`, `postgres/`, `observability/`)
+- **Optional Service Subdirectories**: Under each service type directory, there can be optional subdirectories for individual services (e.g., `observability/config/`, `observability/grafana/`)
 - **Flexible File Organization**: Service configuration files, Dockerfiles, and mount files are organized by service type, with authors of compose.yaml referencing these files as needed
 - **No Script Enforcement**: The compose script does not enforce this directory structure - it's a convention for developers to follow when organizing their Docker-related files
 - We follow whatever policy is set in the docker compose yaml - no restrictions on whether services pull network images or build locally
@@ -48,7 +47,7 @@ This document defines the design constraints for the `compose` script and associ
   ```
 - This approach leverages Docker Compose's built-in environment handling and default value syntax
 - Variables are exported to the shell environment so Docker Compose picks them up automatically
-- **Simple Onboarding**: `git clone && docker compose up` works immediately without requiring .env setup
+- **Simple Onboarding**: `git clone && cd docker && ./compose up` works immediately without requiring .env setup
 
 ## Constraint 3 - Environment Naming Conventions
 
@@ -114,8 +113,8 @@ Services should follow this field order for consistency and readability:
 - **Choose consistently**: Pick one approach per project based on development workflow needs
 
 ### **File Organization Conventions**
-- **Single compose.yaml**: All services in one file at repository root
-- **Service-based docker structure**: `docker/<service-type>/` directories for related files (e.g., `docker/db/`, `docker/api/`)
+- **Single compose.yaml**: All services in one file in the docker/ directory
+- **Service-based docker structure**: `<service-type>/` directories within docker/ for related files (e.g., `postgres/`, `mcp/`, `observability/`)
 - **Environment precedence**: Shell → `.env.local` → `.env` → compose.yaml defaults
 
 **Note**: These are development team conventions - the compose script does NOT enforce these rules.
@@ -214,8 +213,8 @@ While the script only validates convention violations and lets Docker Compose ha
   - Example output:
     ```
     ✗ Port 5432 is used by container: other_project_postgres
-    > Project directory: /Users/dev/other-project  
-    > Stop it with: cd /Users/dev/other-project && docker compose down
+    > Project directory: /Users/dev/other-project/docker 
+    > Stop it with: cd /Users/dev/other-project/docker && ./compose down
     ```
 
 **What We Don't Handle:**

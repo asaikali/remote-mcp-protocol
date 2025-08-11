@@ -6,40 +6,27 @@ This Docker environment provides a complete setup for exploring the Model Contex
 
 ### Method 1: Using the Compose Script (Recommended)
 
-The `compose` script (located at the root of the repository) provides a simple interface to manage both MCP and PostgreSQL services using Docker Compose profiles:
+The `compose` script (located in the docker/ directory) provides a simple interface to manage all services (MCP, PostgreSQL, and Observability):
 
 ```bash
-# From the repository root - Start ALL services (MCP + PostgreSQL):
-./compose up
+# From the docker directory - Start ALL services (MCP + PostgreSQL + Observability):
+cd docker && ./compose up
 
-# Or if using direnv (which adds the root to PATH):
-compose up
-
-# Start only MCP services (Inspector, SSE, Streamable):
-compose up mcp
-
-# Start only PostgreSQL services (PostgreSQL + pgAdmin):
-compose up postgres
-
-# Check status of all services:
-compose status
-
-# Check status of specific profile:
-compose status mcp
-compose status postgres
+# Show connection information for all services:
+./compose info
 
 # View logs from all services:
-compose logs
+./compose logs
 
-# View logs from specific profile:
-compose logs mcp
-compose logs postgres
+# Follow logs from all services:
+./compose logs -f
 
 # Stop all services:
-compose down
+./compose down
 
-# Stop specific profile:
-compose down mcp
+# Clean everything (stops services, removes volumes):
+./compose clean
+
 ```
 
 **Note**: If you have [direnv](https://direnv.net) installed and run `direnv allow`, the compose script will be available in your PATH from anywhere within the repository.
