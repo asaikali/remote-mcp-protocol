@@ -8,6 +8,8 @@ Configuration files for the PostgreSQL service in our Docker Compose setup.
 
 **Additional Database: `test`** - Created by `init.sql` script as an example of adding extra databases.
 
+**System Database: `postgres`** - Always created by PostgreSQL as a default system database. Safe to ignore.
+
 ## How It Works
 
 PostgreSQL container initialization:
