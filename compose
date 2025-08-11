@@ -248,9 +248,8 @@ main() {
                 groups_json=$(echo "$services_json" | jq 'group_by(.info.group // "Other") | map({group: (.[0].info.group // "Other"), services: .})')
                 
                 echo "$groups_json" | jq -r '.[] | "\(.group)\t\(.services | @json)"' | while IFS=$'\t' read -r group services_in_group; do
-                    # Show group header
-                    log header "$group"
-                    echo
+                    # Show group header in red
+                    printf "%b== %s%b\n\n" "$RED" "$group" "$NC"
                     
                     # Process services in this group
                     echo "$services_in_group" | jq -r '.[] | select(.info.title) | "\(.service)\t\(.info | @json)"' | while IFS=$'\t' read -r service info_json; do
