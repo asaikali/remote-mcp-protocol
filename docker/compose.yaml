@@ -223,6 +223,9 @@ services:
       - ./observability/config/otel-collector.yaml:/etc/otel/config.yaml:ro
     restart: unless-stopped
     labels:
+      # Spring Boot service connection (explicitly tell Spring Boot this is an OTEL collector)
+      - "org.springframework.boot.service-connection=otel"
+      # Our wrapper system labels
       - "info.group=Observability Services"
       - "info.title=OpenTelemetry Collector"
       - "info.url.grpc=grpc://localhost:${OTEL_COLLECTOR_GRPC_PORT:-4317}"
