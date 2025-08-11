@@ -168,7 +168,23 @@ services:
       POSTGRES_USER: ${POSTGRES_CRED_USERNAME:-postgres}
 ```
 
-### Constraint 5: Error Handling Philosophy
+### Constraint 5: Universal Access & Script Execution
+
+**Direct Execution Only**:
+- Script must be executed directly, not through symbolic links
+- Universal access achieved via relative paths or PATH modification (direnv, shell aliases)
+- Script location detected using `dirname "${BASH_SOURCE[0]}"`
+
+**Supported Access Patterns**:
+- Direct paths: `docker/compose up`, `../docker/compose up`
+- PATH modification: `export PATH="$PATH:$(pwd)/docker"` or direnv with `PATH_add docker`
+- Shell aliases: `alias compose='docker/compose'`
+
+**Not Supported**:
+- Symbolic links: `ln -s project/docker/compose ~/.local/bin/compose`
+- Complex link chains or relative symlinks
+
+### Constraint 6: Error Handling Philosophy
 
 **Fail Fast on Convention Violations**:
 - Missing `compose.yaml`
@@ -358,8 +374,14 @@ echo "PG_PORT=5432" >> docker/.env.local
 
 ### Universal Access Issues  
 
-**Symlink resolution**: The script resolves symlinks to find the actual script location
+**Script execution**: The script must be executed directly, not through symbolic links
 **Path independence**: All operations are relative to script location, not current working directory
+**Direnv integration**: Works perfectly because direnv adds the docker/ directory to PATH without using symlinks
+
+**If universal access isn't working**:
+- Use `which compose` to verify the script location
+- Ensure you're not using symbolic links
+- Consider direnv with `PATH_add docker` or shell aliases instead
 
 ---
 
