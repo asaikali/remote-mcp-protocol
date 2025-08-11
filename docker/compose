@@ -4,13 +4,13 @@
 # =============================================================================
 #
 # A simple wrapper for Docker Compose that provides enhanced functionality
-# through conventions-based configuration and profile management.
+# through conventions-based configuration.
 #
 # Features:
-#   - Profile-based service management (default, all, db, mcp, observability)
-#   - Status command with connection information from service labels
+#   - Universal access - works from any directory in the repository
+#   - Info command with connection information from service labels
 #   - Environment variable loading (.env, .env.local support)
-#   - Convention validation (compose.yaml, service profiles)
+#   - Convention validation (compose.yaml location)
 #   - Port conflict detection and troubleshooting
 #   - Visual output formatting and progress indicators
 #
@@ -72,10 +72,22 @@ check_dependencies() {
 #------------------------------------------------------------------------------
 get_script_dir() {
     local script_path="${BASH_SOURCE[0]}"
+    
     # Resolve symlinks to get the actual script location
+    # This handles cases where the script is symlinked from other directories
+    # (e.g., when script is in PATH or accessed via symbolic links)
     while [[ -L "$script_path" ]]; do
+        local link_dir
+        link_dir=$(dirname "$script_path")
         script_path=$(readlink "$script_path")
+        
+        # Handle relative symlinks by making them absolute
+        # If readlink returns a relative path, prepend the link's directory
+        if [[ "$script_path" != /* ]]; then
+            script_path="$link_dir/$script_path"
+        fi
     done
+    
     dirname "$script_path"
 }
 
@@ -92,7 +104,7 @@ check_compose_file() {
     fi
 }
 
-# No longer needed - profile system removed
+# Profile validation removed - system now starts all services together
 
 validate_conventions() {
     check_compose_file
@@ -105,15 +117,19 @@ load_env() {
     local script_dir
     script_dir=$(get_script_dir)
     
-    set -a  # Auto-export variables
+    # Auto-export all variables set in env files so Docker Compose can use them
+    set -a  
     
-    # Load .env if it exists (team defaults)
+    # Load .env if it exists (team defaults, committed to git)
+    # The [[ ]] test prevents errors if the file doesn't exist
     [[ -f "$script_dir/.env" ]] && source "$script_dir/.env"
     
-    # Load .env.local if it exists (personal overrides)
+    # Load .env.local if it exists (personal overrides, gitignored)
+    # This file takes precedence over .env for the same variables
     [[ -f "$script_dir/.env.local" ]] && source "$script_dir/.env.local"
     
-    set +a  # Stop auto-export
+    # Stop auto-exporting variables for the rest of the script
+    set +a
 }
 
 #------------------------------------------------------------------------------
@@ -123,7 +139,9 @@ docker_compose() {
     local script_dir
     script_dir=$(get_script_dir)
     
-    # Change to script directory and run docker compose
+    # Run docker compose from the script directory (not current working directory)
+    # The subshell (parentheses) ensures we don't change the caller's working directory
+    # 'command' prevents any potential docker compose function/alias conflicts
     (cd "$script_dir" && command docker compose "$@")
 }
 
@@ -149,22 +167,28 @@ process_service_info_json() {
     if [[ -n "$title" ]]; then
         log success "$title"
         
-        # Show URLs
+        # Extract and display URLs from the info.url.* labels
+        # jq breakdown: .url // {} = get .url object or empty object if null
+        #               to_entries[] = convert {key:value} to [{key:"key", value:"value"}]
+        #               "\(.key): \(.value)" = format as "key: value" strings
         local urls
         urls=$(echo "$info_json" | jq -r '.url // {} | to_entries[] | "\(.key): \(.value)"' 2>/dev/null || true)
         if [[ -n "$urls" ]]; then
+            # Read each URL line and display with indentation
             while IFS= read -r url_line; do
                 printf "    → %s\n" "$url_line"
-            done <<< "$urls"
+            done <<< "$urls"  # Here-string to pass urls to the while loop
         fi
         
-        # Show credentials
+        # Extract and display credentials from the info.cred.* labels
+        # Same jq pattern as URLs above
         local creds
         creds=$(echo "$info_json" | jq -r '.cred // {} | to_entries[] | "\(.key): \(.value)"' 2>/dev/null || true)
         if [[ -n "$creds" ]]; then
+            # Read each credential line and display with indentation
             while IFS= read -r cred_line; do
                 printf "    → %s\n" "$cred_line"
-            done <<< "$creds"
+            done <<< "$creds"  # Here-string to pass creds to the while loop
         fi
         
         echo
@@ -220,6 +244,9 @@ main() {
     
     case "$cmd" in
         up|down|ps|logs|build)
+            # Capitalize the first letter of the command for display
+            # ${cmd:0:1} = first character, ${cmd:1} = rest of string
+            # tr converts first char to uppercase
             show_operation_header "$(tr '[:lower:]' '[:upper:]' <<< "${cmd:0:1}")${cmd:1}"
             
             if [[ "$cmd" == "up" ]]; then
@@ -245,7 +272,20 @@ main() {
         info)
             log header "Service Connection Information"
             
-            # Get all services using docker compose config
+            # COMPLEX JQ PIPELINE: Extract service info from Docker Compose configuration
+            # This is the most complex part of the script - here's how it works:
+            #
+            # 1. docker_compose config --format json = get complete compose config as JSON
+            # 2. .services | to_entries = convert services object to array of {key, value} pairs
+            # 3. map({service: .key, info: ...}) = transform each service entry
+            # 4. For the info section:
+            #    a. (.value.labels // {}) = get service labels or empty object
+            #    b. | to_entries = convert labels to array of {key, value} pairs  
+            #    c. | map(select(.key|startswith("info."))) = keep only info.* labels
+            #    d. | map({path: (.key | split(".")[1:]), value: .value}) = convert "info.group.Database" to {path:["group","Database"], value:"..."}
+            #    e. | reduce .[] as $i ({}; setpath($i.path; $i.value)) = rebuild nested object from paths
+            #
+            # Example: "info.url.jdbc=jdbc://..." becomes {url: {jdbc: "jdbc://..."}}
             local services_json
             services_json=$(docker_compose config --format json 2>/dev/null | jq '.services
                            | to_entries
@@ -263,15 +303,24 @@ main() {
             if [[ -n "$services_json" && "$services_json" != "null" ]]; then
                 echo
                 
-                # Group services by info.group and process
+                # GROUP SERVICES BY info.group LABEL AND DISPLAY
+                # This groups services by their info.group label for organized output
+                #
+                # jq breakdown:
+                # 1. group_by(.info.group // "Other") = group services by group label, default to "Other"
+                # 2. map({group: (.[0].info.group // "Other"), services: .}) = create {group: "name", services: [...]} objects
                 local groups_json
                 groups_json=$(echo "$services_json" | jq 'group_by(.info.group // "Other") | map({group: (.[0].info.group // "Other"), services: .})')
                 
+                # Process each group: extract group name and services as tab-separated values
+                # @json ensures the services array is properly JSON-encoded for later parsing
                 echo "$groups_json" | jq -r '.[] | "\(.group)\t\(.services | @json)"' | while IFS=$'\t' read -r group services_in_group; do
-                    # Show group header in red
+                    # Display group header in red color
                     printf "%b== %s%b\n\n" "$RED" "$group" "$NC"
                     
-                    # Process services in this group
+                    # Process each service in this group
+                    # select(.info.title) = only show services that have a title label
+                    # Output format: "service_name<TAB>info_json" for parsing
                     echo "$services_in_group" | jq -r '.[] | select(.info.title) | "\(.service)\t\(.info | @json)"' | while IFS=$'\t' read -r service info_json; do
                         process_service_info_json "$service" "$info_json"
                     done
