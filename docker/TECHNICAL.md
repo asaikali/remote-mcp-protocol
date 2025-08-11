@@ -188,6 +188,7 @@ Services should follow this field order for consistency and readability:
 - **`info.title`** - Human-readable service name (REQUIRED for visibility in `compose info`)  
 - **`info.url.<type>`** - Connection URLs by type (ui, api, jdbc, grpc, etc.)
 - **`info.cred.<type>`** - Credential information by type (username, password, api_key, etc.)
+- **`info.message`** - Contextual guidance message displayed in **bold** for high visibility (Docker networking tips, troubleshooting guidance, usage notes)
 
 **Complete Service Example**:
 ```yaml
@@ -206,6 +207,7 @@ services:
       - "info.url.ui=http://localhost:${PGADMIN_PORT:-15433}"
       - "info.cred.username=${POSTGRES_CRED_USERNAME:-postgres}"
       - "info.cred.password=${POSTGRES_CRED_PASSWORD:-password}"
+      - "info.message=Main database created automatically as 'dev' via POSTGRES_DB environment variable"
 ```
 
 **Label Extraction**: Script uses `docker compose config --format json` + `jq` to extract and process labels.
@@ -425,7 +427,7 @@ echo "$groups_json" | jq -r '.[] | "\(.group)\t\(.services | @json)"' | while IF
 done
 ```
 
-**URL and Credential Processing**:
+**URL, Credential, and Message Processing**:
 ```bash
 # Extract and display URLs from the info.url.* labels
 # jq breakdown: .url // {} = get .url object or empty object if null
@@ -438,6 +440,23 @@ if [[ -n "$urls" ]]; then
     while IFS= read -r url_line; do
         printf "    → %s\n" "$url_line"
     done <<< "$urls"  # Here-string to pass urls to the while loop
+fi
+
+# Extract and display credentials from the info.cred.* labels (same pattern as URLs)
+local creds
+creds=$(echo "$info_json" | jq -r '.cred // {} | to_entries[] | "\(.key): \(.value)"' 2>/dev/null || true)
+if [[ -n "$creds" ]]; then
+    while IFS= read -r cred_line; do
+        printf "    → %s\n" "$cred_line"
+    done <<< "$creds"
+fi
+
+# Extract and display contextual message from the info.message label
+local message
+message=$(echo "$info_json" | jq -r '.message // empty' 2>/dev/null || true)
+if [[ -n "$message" ]]; then
+    # Display message in bold to make it more prominent  
+    printf "    %b→ %s%b\n" "$BOLD" "$message" "$NC"
 fi
 ```
 
@@ -559,6 +578,7 @@ services:
       - "info.title=Human Readable Service Name"         # REQUIRED for visibility
       - "info.url.ui=http://localhost:${NEW_SERVICE_PORT:-8080}"
       - "info.cred.username=${NEW_SERVICE_CRED_USERNAME:-admin}"
+      - "info.message=Contextual guidance for users (Docker networking, usage tips, etc.)"
 ```
 
 ### Service Organization Best Practices
