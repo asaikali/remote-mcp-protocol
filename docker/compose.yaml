@@ -134,6 +134,9 @@ services:
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: unless-stopped
     labels:
+      # Spring Boot labels (for custom images or explicit configuration)
+      - "org.springframework.boot.service-connection=postgres"
+      # Our wrapper system labels
       - "info.group=Database Services"
       - "info.title=PostgreSQL Database"
       - "info.url.jdbc=jdbc:postgresql://localhost:${PG_PORT:-15432}/mcp_dev"

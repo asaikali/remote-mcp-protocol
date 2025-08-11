@@ -411,4 +411,193 @@ The system is designed to be self-validating:
 
 ---
 
+## Spring Boot Integration
+
+This Docker Compose wrapper system is designed to work seamlessly with Spring Boot's Docker Compose support (`spring-boot-docker-compose` module).
+
+### Spring Boot Docker Compose Module
+
+When Spring Boot applications include the `spring-boot-docker-compose` dependency, they automatically:
+1. **Search for compose.yaml** in the working directory (our system provides this)
+2. **Auto-start containers** with `docker compose up` when the application starts
+3. **Create service connection beans** for supported containers
+4. **Auto-stop containers** with `docker compose stop` when the application shuts down
+
+### Integration Benefits
+
+**Automatic Service Discovery**: Spring Boot automatically discovers and connects to services based on container image names:
+
+| Container Image | Spring Boot Auto-Configuration |
+|---|---|
+| `postgres` or `bitnami/postgresql` | `JdbcConnectionDetails`, `R2dbcConnectionDetails` |
+| `redis`, `bitnami/redis` | `RedisConnectionDetails` |
+| `rabbitmq`, `bitnami/rabbitmq` | `RabbitConnectionDetails` |
+| `mongo`, `bitnami/mongodb` | `MongoConnectionDetails` |
+| `otel/opentelemetry-collector-contrib` | `OtlpMetricsConnectionDetails`, `OtlpTracingConnectionDetails` |
+
+### Spring Boot Specific Labels
+
+In addition to our `info.*` labels, services can use Spring Boot-specific labels:
+
+#### Service Connection Override
+```yaml
+services:
+  my-custom-postgres:
+    image: my-company/custom-postgres:latest
+    labels:
+      - "org.springframework.boot.service-connection=postgres"  # Tell Spring Boot this is PostgreSQL
+      - "info.group=Database Services"                          # Our wrapper system
+      - "info.title=Custom PostgreSQL"                          # Our wrapper system
+```
+
+#### Skip Service Connection
+```yaml
+services:
+  utility-service:
+    image: nginx:alpine
+    labels:
+      - "org.springframework.boot.ignore=true"          # Spring Boot ignores this service
+      - "info.group=Utility Services"                   # But our wrapper still shows it
+      - "info.title=Nginx Proxy"
+```
+
+#### SSL Configuration
+```yaml
+services:
+  secure-redis:
+    image: redis:latest
+    labels:
+      - "org.springframework.boot.sslbundle.pem.truststore.certificate=ca.crt"
+      - "info.group=Cache Services"
+      - "info.title=Secure Redis"
+```
+
+#### Disable Readiness Checks
+```yaml
+services:
+  background-job:
+    image: my-app/background-processor:latest
+    labels:
+      - "org.springframework.boot.readiness-check.tcp.disable=true"
+      - "info.group=Background Services"
+      - "info.title=Job Processor"
+```
+
+### Configuration Options
+
+Spring Boot applications can configure Docker Compose behavior in `application.yaml`:
+
+```yaml
+spring:
+  docker:
+    compose:
+      # Use our compose.yaml file (relative to application working directory)
+      file: "docker/compose.yaml"
+      
+      # Control lifecycle management
+      lifecycle-management: start-and-stop  # or 'none', 'start-only'
+      
+      # Use docker compose start instead of up
+      start:
+        command: start
+      
+      # Use docker compose down instead of stop  
+      stop:
+        command: down
+        timeout: 1m
+        
+      # Configure readiness checks
+      readiness:
+        timeout: 2m
+        tcp:
+          connect-timeout: 10s
+          read-timeout: 5s
+```
+
+### Best Practices for Spring Boot Integration
+
+#### 1. Image Selection
+Use standard images that Spring Boot recognizes automatically:
+```yaml
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17}          # Spring Boot auto-detects
+    # vs custom image requiring service-connection label
+```
+
+#### 2. Dual Labeling Strategy
+Include both Spring Boot and wrapper system labels:
+```yaml
+services:
+  postgres:
+    image: postgres:17
+    labels:
+      # Spring Boot labels (if needed for custom images)
+      - "org.springframework.boot.service-connection=postgres"
+      
+      # Our wrapper system labels
+      - "info.group=Database Services"
+      - "info.title=PostgreSQL Database"
+      - "info.url.jdbc=jdbc:postgresql://localhost:${PG_PORT:-15432}/mydb"
+      - "info.cred.username=postgres"
+      - "info.cred.password=password"
+```
+
+#### 3. Development Workflow
+```bash
+# Option 1: Let Spring Boot manage containers
+mvn spring-boot:run    # Spring Boot starts containers automatically
+
+# Option 2: Use our wrapper for manual control  
+compose up            # Start containers manually
+mvn spring-boot:run   # Spring Boot detects running containers, doesn't start them again
+compose down          # Manual cleanup when needed
+```
+
+### AI Agent Guidelines for Spring Boot Projects
+
+When working with Spring Boot applications:
+
+1. **Use Standard Images**: Prefer standard Docker images that Spring Boot auto-detects over custom images
+2. **Dual Labels**: Always include both `info.*` labels for our wrapper AND Spring Boot labels if using custom images
+3. **Configuration Path**: If the Spring Boot app is not in the repository root, configure `spring.docker.compose.file` to point to `docker/compose.yaml`
+4. **Lifecycle Coordination**: Consider whether the application should manage containers or if developers will use the wrapper manually
+
+### Example Complete Service Definition
+
+```yaml
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17}
+    environment:
+      POSTGRES_USER: ${POSTGRES_CRED_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_CRED_PASSWORD:-password}
+      PGDATA: "/data/postgres"
+    ports:
+      - "${PG_PORT:-15432}:5432"
+    volumes:
+      - postgres:/data/postgres
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      # Spring Boot automatically detects postgres image - no service-connection label needed
+      
+      # Our wrapper system labels
+      - "info.group=Database Services"
+      - "info.title=PostgreSQL Database"
+      - "info.url.jdbc=jdbc:postgresql://localhost:${PG_PORT:-15432}/mydb"
+      - "info.url.psql=postgresql://postgres:password@localhost:${PG_PORT:-15432}/postgres"
+      - "info.cred.username=${POSTGRES_CRED_USERNAME:-postgres}"
+      - "info.cred.password=${POSTGRES_CRED_PASSWORD:-password}"
+```
+
+This integration provides the best of both worlds: automatic Spring Boot service discovery and our enhanced developer experience through the wrapper system.
+
+---
+
 This implementation maintains simplicity while providing the flexibility needed for diverse development environments. The constraint-based design ensures consistency and predictability across different projects and teams.

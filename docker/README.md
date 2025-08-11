@@ -154,6 +154,75 @@ The philosophy is "start everything, ignore what you don't need." Modern machine
 
 If you really need selective startup, use `docker compose up <service-name>` directly.
 
+### Spring Boot Integration ⚡
+
+If you're building a **Spring Boot application**, this Docker setup provides seamless integration with Spring Boot's Docker Compose support.
+
+#### What Spring Boot Does Automatically
+
+When you add the `spring-boot-docker-compose` dependency to your Spring Boot project:
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-docker-compose</artifactId>
+    <optional>true</optional>
+</dependency>
+```
+
+Spring Boot automatically:
+- **Finds our compose.yaml** and starts the containers when your app starts
+- **Auto-configures connections** to PostgreSQL, Redis, and other services
+- **Creates connection beans** (`DataSource`, `RedisTemplate`, etc.) with the correct ports and credentials
+- **Stops containers** when your application shuts down
+
+#### Spring Boot Development Workflows
+
+**Option 1: Let Spring Boot Manage Everything**
+```bash
+# Spring Boot automatically starts containers and connects to them
+mvn spring-boot:run
+# or
+./gradlew bootRun
+```
+
+**Option 2: Manual Container Management**
+```bash
+# Start containers first, then run your app
+compose up
+mvn spring-boot:run    # Spring Boot detects running containers
+# Your app connects automatically, containers keep running after app stops
+```
+
+**Option 3: Hybrid Approach**
+```bash
+compose up           # Start dependencies
+mvn spring-boot:run  # Spring Boot uses existing containers
+compose info         # See all connection details
+compose down         # Clean shutdown when done
+```
+
+#### Configuration in Your Spring Boot App
+
+**Point to our compose file** (if your app isn't in the repository root):
+```yaml
+# src/main/resources/application.yaml
+spring:
+  docker:
+    compose:
+      file: "docker/compose.yaml"
+```
+
+**That's it!** No manual database URLs, Redis configuration, or connection strings needed. Spring Boot discovers everything from the running containers.
+
+#### What This Means for Spring Boot Developers
+
+✅ **Zero Configuration** - No database URLs or connection strings in your application.properties  
+✅ **Automatic Service Discovery** - Spring Boot finds PostgreSQL on port 15432, connects automatically  
+✅ **Consistent Environments** - Same container setup works across your entire team  
+✅ **Fast Development** - Start coding immediately, dependencies are handled  
+✅ **Best Practices** - Health checks, proper networking, and observability built-in
+
 ---
 
 ## Section 2: Adding Services & Customizing 🔧
