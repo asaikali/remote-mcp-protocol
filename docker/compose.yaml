@@ -139,8 +139,8 @@ services:
       # Our wrapper system labels
       - "info.group=Database Services"
       - "info.title=PostgreSQL Database"
-      - "info.url.jdbc=jdbc:postgresql://localhost:${PG_PORT:-15432}/mcp_dev"
-      - "info.url.psql=postgresql://postgres:password@localhost:${PG_PORT:-15432}/postgres"
+      - "info.url.jdbc=jdbc:postgresql://localhost:${PG_PORT:-15432}/dev"
+      - "info.url.psql=postgresql://postgres:password@localhost:${PG_PORT:-15432}/dev"
       - "info.cred.username=postgres"
       - "info.cred.password=password"
 

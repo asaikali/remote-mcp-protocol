@@ -1,17 +1,9 @@
 -- PostgreSQL initialization script
 -- This script runs when the PostgreSQL container starts for the first time
--- It creates databases and users for the MCP development environment
+-- Creates a generic 'dev' database for development
+-- Customize database names by editing this file
 
-CREATE DATABASE mcp_dev
-    WITH
-    OWNER = postgres
-    ENCODING = 'UTF8'
-    LC_COLLATE = 'en_US.utf8'
-    LC_CTYPE = 'en_US.utf8'
-    TABLESPACE = pg_default
-    CONNECTION LIMIT = -1;
-
-CREATE DATABASE mcp_test
+CREATE DATABASE dev
     WITH
     OWNER = postgres
     ENCODING = 'UTF8'
