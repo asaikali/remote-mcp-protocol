@@ -126,6 +126,7 @@ services:
     environment:
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "password"
+      POSTGRES_DB: "dev"
       PGDATA: "/data/postgres"
     ports:
       - "${PG_PORT:-15432}:5432"  # PostgreSQL port, configurable via PG_PORT
