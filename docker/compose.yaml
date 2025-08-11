@@ -86,6 +86,7 @@ services:
       - "info.title=Everything SSE Server"
       - "info.url.sse=http://localhost:${MCP_SSE_PORT:-3001}/sse"
       - "info.url.inspector=everything-sse:3001"
+      - "info.message=For MCP Inspector connections, use Docker service name: everything-sse:3001 (not localhost:${MCP_SSE_PORT:-3001})"
 
   everything-streamable:
     build:
@@ -101,6 +102,7 @@ services:
       - "info.title=Everything Streamable Server"
       - "info.url.streamable=http://localhost:${MCP_STREAMABLE_PORT:-4001}/mcp"
       - "info.url.inspector=everything-streamable:3001"
+      - "info.message=For MCP Inspector connections, use Docker service name: everything-streamable:3001 (not localhost:${MCP_STREAMABLE_PORT:-4001})"
 
   mcp-inspector:
     build:
@@ -117,6 +119,7 @@ services:
       - "info.title=MCP Inspector"
       - "info.url.ui=http://localhost:${MCP_INSPECTOR_PORT:-6274}"
       - "info.url.websocket=ws://localhost:${MCP_INSPECTOR_WS_PORT:-6277}"
+      - "info.message=This runs inside Docker - use Docker service names to connect to other MCP services (e.g., everything-sse:3001)"
 
   # ==========================================================================
   # Database Services

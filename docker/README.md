@@ -288,6 +288,10 @@ The system uses Docker Compose labels to provide connection information through 
   - `info.cred.password` - Password
   - `info.cred.api_key` - API key
   - Custom credential types as needed
+- **`info.message`** - Contextual guidance message (displayed in **bold** for visibility):
+  - Docker networking guidance
+  - Connection troubleshooting tips
+  - Important usage notes
 
 #### Complete Service Example
 
@@ -307,6 +311,7 @@ services:
       - "info.url.ui=http://localhost:${PGADMIN_PORT:-15433}"
       - "info.cred.username=${POSTGRES_CRED_USERNAME:-postgres}"
       - "info.cred.password=${POSTGRES_CRED_PASSWORD:-password}"
+      - "info.message=Main database created automatically as 'dev' via POSTGRES_DB environment variable"
 ```
 
 ### Directory Structure & File Organization

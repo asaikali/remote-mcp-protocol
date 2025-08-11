@@ -90,7 +90,8 @@ The MCP Inspector is a web-based tool for testing and debugging MCP server conne
 
 1. **Start services**: `compose up` (from parent directory)
 2. **Open inspector**: http://localhost:6274  
-3. **Connect to MCP servers** using the appropriate URLs below
+3. **View connection information**: `compose info` shows all URLs with **bold networking guidance**
+4. **Connect to MCP servers** using the appropriate URLs below
 
 ### Understanding Network Connectivity
 

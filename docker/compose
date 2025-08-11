@@ -177,6 +177,14 @@ process_service_info_json() {
             done <<< "$creds"  # Here-string to pass creds to the while loop
         fi
         
+        # Extract and display message from the info.message label
+        local message
+        message=$(echo "$info_json" | jq -r '.message // empty' 2>/dev/null || true)
+        if [[ -n "$message" ]]; then
+            # Display message in bold to make it more prominent
+            printf "    %b→ %s%b\n" "$BOLD" "$message" "$NC"
+        fi
+        
         echo
     fi
 }
