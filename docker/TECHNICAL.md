@@ -259,18 +259,18 @@ services:
 - Keep script simple by leveraging Docker Compose features
 
 **Simple Troubleshooting Only**:
-- Port conflict detection after `docker compose up` failures
+- Generic failure handling after `docker compose up` failures with port conflict suggestions
 - Helpful error messages with actionable next steps
 - No complex error handling logic
 
 **Common Error Troubleshooting**:
-- **Port Conflicts**: Detect failure, check container port usage, provide resolution steps
-- **Human Resolution**: Developers handle conflict resolution, script provides guidance
+- **Generic Failure Handling**: Detect `docker compose up` failure and suggest port conflicts as likely cause
+- **Human Resolution**: Developers handle the actual diagnosis and conflict resolution, script provides generic guidance
 - Example output:
   ```
-  ✗ Port 5432 is used by container: other_project_postgres
-  > Project directory: /Users/dev/other-project/docker 
-  > Stop it with: cd /Users/dev/other-project/docker && ./compose down
+  ✗ Failed to start services - likely port conflicts
+  → Check running containers with: docker ps
+  → Stop conflicting services or change ports in .env
   ```
 
 **What We Don't Handle**: Image pull failures, network connectivity, volume mount problems, service dependencies, dynamic port conflicts.
@@ -607,7 +607,7 @@ When working with Spring Boot applications:
 
 ### Port Conflicts
 
-**Detection**: The script detects `docker compose up` failures and suggests port conflicts as a likely cause.
+**Detection**: The script detects `docker compose up` failures and generically suggests port conflicts as a likely cause, without actually detecting whether port conflicts are the real issue. It provides helpful guidance by suggesting the most common cause of startup failures.
 
 **Resolution**: Users modify `.env.local` or use shell environment overrides:
 ```bash
