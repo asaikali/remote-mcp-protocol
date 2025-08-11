@@ -102,13 +102,16 @@ validate_conventions() {
 # Environment Loading
 #------------------------------------------------------------------------------
 load_env() {
+    local script_dir
+    script_dir=$(get_script_dir)
+    
     set -a  # Auto-export variables
     
     # Load .env if it exists (team defaults)
-    [[ -f .env ]] && source .env
+    [[ -f "$script_dir/.env" ]] && source "$script_dir/.env"
     
     # Load .env.local if it exists (personal overrides)
-    [[ -f .env.local ]] && source .env.local
+    [[ -f "$script_dir/.env.local" ]] && source "$script_dir/.env.local"
     
     set +a  # Stop auto-export
 }
