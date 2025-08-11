@@ -31,6 +31,17 @@ compose down
 
 That's it! All dependencies are running and ready for development.
 
+### What Services Are Available?
+
+**Quick Overview**: Run `compose info` to see all connection URLs and credentials for available services.
+
+**Detailed Information**: Each service directory contains a README.md with specific details for example:
+
+- **`postgres/README.md`** - PostgreSQL database setup, Spring Boot integration, multi-database configuration
+- **`observability/README.md`** - Grafana, Prometheus, Loki monitoring stack setup
+
+These service READMEs explain what each service does, how to use them, and customization options.
+
 ### Requirements
 
 - **Docker Desktop** - Running and accessible
