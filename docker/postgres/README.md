@@ -15,6 +15,28 @@ PostgreSQL container initialization:
 2. Runs `*.sql` files from `/docker-entrypoint-initdb.d/` (creates additional databases)
 3. Spring Boot auto-detects and connects to the `dev` database
 
+## Spring Boot Service Connections
+
+Spring Boot automatically configures database connections when using Docker Compose:
+
+**Auto-Detection**: Spring Boot scans running containers and recognizes PostgreSQL by image name (`postgres`, `bitnami/postgresql`).
+
+**Automatic Configuration**: Creates `JdbcConnectionDetails` and `R2dbcConnectionDetails` beans by reading container environment variables:
+- `POSTGRES_USER` → database username
+- `POSTGRES_PASSWORD` → database password  
+- `POSTGRES_DB` → database name
+- Container host/port → connection URL
+
+**Zero Configuration**: No need to configure `spring.datasource.*` properties in `application.yaml`. Spring Boot handles everything automatically.
+
+**What This Means**:
+- ✅ **No manual JDBC setup required** - Spring Boot auto-configures DataSource
+- ✅ **No connection strings in config** - Extracted from container environment
+- ✅ **Works out of the box** - Just run `docker compose up` then start your app
+- ✅ **Development-only feature** - Disabled in production builds
+
+**Requires**: `spring-boot-docker-compose` dependency in your `pom.xml`/`build.gradle`.
+
 ## Files
 
 - **`init.sql`** - Creates additional `test` database. Shows pattern for multiple databases.
