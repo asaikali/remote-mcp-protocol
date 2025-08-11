@@ -68,12 +68,26 @@ check_dependencies() {
 }
 
 #------------------------------------------------------------------------------
-# Convention Validation
+# Script Location and Convention Validation
 #------------------------------------------------------------------------------
+get_script_dir() {
+    local script_path="${BASH_SOURCE[0]}"
+    # Resolve symlinks to get the actual script location
+    while [[ -L "$script_path" ]]; do
+        script_path=$(readlink "$script_path")
+    done
+    dirname "$script_path"
+}
+
 check_compose_file() {
-    if [[ ! -f compose.yaml ]]; then
-        log error "compose.yaml not found in current directory"
-        log info "This script requires a compose.yaml file (exact filename)"
+    local script_dir
+    script_dir=$(get_script_dir)
+    local compose_file="$script_dir/compose.yaml"
+    
+    if [[ ! -f "$compose_file" ]]; then
+        log error "compose.yaml not found next to compose script"
+        log info "Expected location: $compose_file"
+        log info "This script requires a compose.yaml file in the same directory"
         exit 1
     fi
 }
@@ -103,8 +117,11 @@ load_env() {
 # Docker Compose Wrapper
 #------------------------------------------------------------------------------
 docker_compose() {
-    # Simple passthrough to docker compose
-    command docker compose "$@"
+    local script_dir
+    script_dir=$(get_script_dir)
+    
+    # Change to script directory and run docker compose
+    (cd "$script_dir" && command docker compose "$@")
 }
 
 #------------------------------------------------------------------------------
@@ -227,7 +244,7 @@ main() {
             
             # Get all services using docker compose config
             local services_json
-            services_json=$(docker compose config --format json 2>/dev/null | jq '.services
+            services_json=$(docker_compose config --format json 2>/dev/null | jq '.services
                            | to_entries
                            | map({
                                service: .key,
